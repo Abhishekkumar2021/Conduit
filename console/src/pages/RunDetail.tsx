@@ -1,11 +1,19 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  ArrowLeft,
+  Activity,
+  Info,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Table } from "@/components/ui/Table";
-import { RUN_STATUS } from "@/lib/constants";
+import { Card } from "@/components/ui/Card";
+// import { RUN_STATUS } from "@/lib/constants";
 import { useRunDetail } from "@/hooks/queries/useRuns";
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
 import { usePipelines } from "@/hooks/queries/usePipelines";
@@ -59,11 +67,8 @@ export function RunDetail() {
     );
   }
 
-  const statusMeta =
-    RUN_STATUS[run.status as keyof typeof RUN_STATUS] || RUN_STATUS.pending;
-
   return (
-    <div className="fade-in p-4 sm:p-6 lg:p-8 space-y-4">
+    <div className="fade-in p-4 sm:p-5 lg:p-6 space-y-4">
       <PageHeader
         title={`Run #${run.id.slice(0, 8)}`}
         description="Execution details and stage outcomes"
@@ -77,99 +82,223 @@ export function RunDetail() {
         }
       />
 
-      <div className="max-w-[1000px] rounded-xl border border-border bg-card p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge
-            variant={statusMeta.variant}
-            dot
-            className="rounded-full px-2 py-0 h-[20px] shadow-sm"
-          >
-            {statusMeta.label}
-          </Badge>
-          <span className="text-[12px] text-muted-foreground">
-            Pipeline: <span className="text-foreground">{pipelineName}</span>
+      <div className="max-w-7xl flex flex-wrap items-center gap-x-8 gap-y-4 px-1 pb-4 border-b border-border/40">
+        <div className="space-y-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-bold px-0.5">
+            Status
           </span>
-          <span className="text-[12px] text-muted-foreground capitalize">
-            Trigger: <span className="text-foreground">{run.trigger_type}</span>
-          </span>
-          <span className="text-[12px] text-muted-foreground">
-            Duration:{" "}
-            <span className="text-foreground">{formatDuration(run.duration_ms)}</span>
-          </span>
-        </div>
-
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 text-[12px] text-muted-foreground">
-          <span>
-            Started: <span className="text-foreground">{formatDate(run.started_at)}</span>
-          </span>
-          <span>
-            Finished:{" "}
-            <span className="text-foreground">{formatDate(run.finished_at)}</span>
-          </span>
-          {run.error_message ? (
-            <span className="sm:col-span-2 text-destructive">
-              Error: {run.error_message}
+          <div className="flex items-center gap-2">
+            {run.status === "succeeded" ? (
+              <CheckCircle2
+                className="h-4 w-4 text-emerald-500"
+                strokeWidth={2}
+              />
+            ) : run.status === "failed" ? (
+              <AlertTriangle
+                className="h-4 w-4 text-rose-500"
+                strokeWidth={2}
+              />
+            ) : (
+              <Loader2
+                className="h-4 w-4 animate-spin text-primary"
+                strokeWidth={2}
+              />
+            )}
+            <span className="text-[13px] font-bold text-foreground/90 capitalize">
+              {run.status}
             </span>
-          ) : null}
+          </div>
+        </div>
+        <div className="space-y-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-bold px-0.5">
+            Duration
+          </span>
+          <p className="text-[13px] font-bold text-foreground/90 tabular-nums">
+            {formatDuration(run.duration_ms)}
+          </p>
+        </div>
+        <div className="space-y-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-bold px-0.5">
+            Pipeline
+          </span>
+          <p className="text-[13px] font-bold text-foreground/90">
+            {pipelineName}
+          </p>
+        </div>
+        <div className="space-y-0.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-bold px-0.5">
+            Trigger
+          </span>
+          <p className="text-[13px] font-bold text-foreground/90 capitalize">
+            {run.trigger_type}
+          </p>
         </div>
       </div>
 
-      <div className="max-w-[1000px]">
-        {run.steps.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border/50 p-8 text-center text-muted-foreground">
-            No step logs are available for this run yet.
+      <div className="max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Timeline/Steps Column */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-[13px] font-bold text-foreground/80 flex items-center gap-2 tracking-tight">
+              <Activity className="h-3.5 w-3.5 text-primary/60" />
+              Execution Flow
+            </h3>
+            <Badge
+              variant="info"
+              dot
+              className="px-1.5 py-0 h-4 text-[9px] font-bold border-none bg-transparent"
+            >
+              {run.steps.length} Stages
+            </Badge>
           </div>
-        ) : (
-          <Table
-            headers={[
-              "Stage",
-              "Kind",
-              "Status",
-              "Records In",
-              "Records Out",
-              "Failed",
-              "Duration",
-              "Error",
-            ]}
-          >
-            {run.steps.map((step) => {
-              const stepStatus =
-                RUN_STATUS[step.status as keyof typeof RUN_STATUS] ||
-                RUN_STATUS.pending;
-              return (
-                <tr key={step.id} className="hover:bg-muted/50 transition-colors">
-                  <td className="px-4 py-3 text-[12px] text-foreground">{step.stage_key}</td>
-                  <td className="px-4 py-3 text-[12px] text-muted-foreground capitalize">
-                    {step.stage_kind}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      variant={stepStatus.variant}
-                      dot
-                      className="rounded-full px-2 py-0 h-[20px] shadow-sm"
+
+          <div className="space-y-2 relative before:absolute before:left-[17px] before:top-4 before:bottom-4 before:w-px before:bg-border/30">
+            {run.steps.length === 0 ? (
+              <div className="rounded-2xl p-12 text-center text-muted-foreground bg-muted/10">
+                No stages recorded for this run.
+              </div>
+            ) : (
+              run.steps.map((step, idx) => {
+                return (
+                  <div
+                    key={step.id}
+                    className="group relative flex gap-6 py-2 transition-all"
+                    style={{ animationDelay: `${idx * 50}ms` }}
+                  >
+                    <div
+                      className={cn(
+                        "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-border/10 transition-all",
+                        step.status === "succeeded"
+                          ? "bg-emerald-500/10 text-emerald-600"
+                          : step.status === "failed"
+                            ? "bg-rose-500/10 text-rose-600"
+                            : "bg-muted/30 text-muted-foreground/40",
+                      )}
                     >
-                      {stepStatus.label}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-[12px] tabular-nums text-muted-foreground">
-                    {step.records_in}
-                  </td>
-                  <td className="px-4 py-3 text-[12px] tabular-nums text-muted-foreground">
-                    {step.records_out}
-                  </td>
-                  <td className="px-4 py-3 text-[12px] tabular-nums text-muted-foreground">
-                    {step.records_failed}
-                  </td>
-                  <td className="px-4 py-3 text-[12px] tabular-nums text-muted-foreground">
-                    {formatDuration(step.duration_ms)}
-                  </td>
-                  <td className="px-4 py-3 text-[12px] text-destructive">
-                    {step.error_message || "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </Table>
+                      {step.status === "succeeded" ? (
+                        <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+                      ) : step.status === "failed" ? (
+                        <AlertTriangle className="h-4 w-4" strokeWidth={2} />
+                      ) : (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          strokeWidth={2}
+                        />
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="space-y-0.5">
+                          <h4 className="text-[14px] font-semibold text-foreground leading-none">
+                            {step.stage_key}
+                          </h4>
+                          <span className="text-[11px] text-muted-foreground lowercase opacity-70">
+                            {step.stage_kind} •{" "}
+                            {formatDuration(step.duration_ms)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-6 text-[12px] tabular-nums text-muted-foreground font-medium">
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] uppercase tracking-tighter opacity-50">
+                              In
+                            </span>
+                            <span>{step.records_in}</span>
+                          </div>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[9px] uppercase tracking-tighter opacity-50">
+                              Out
+                            </span>
+                            <span>{step.records_out}</span>
+                          </div>
+                          {step.records_failed > 0 && (
+                            <div className="flex flex-col items-center text-rose-500">
+                              <span className="text-[9px] uppercase tracking-tighter opacity-50">
+                                Fail
+                              </span>
+                              <span>{step.records_failed}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {step.error_message && (
+                        <div className="mt-2 rounded-lg bg-rose-500/5 border border-rose-500/10 p-3 text-[12px] text-rose-600 leading-relaxed flex gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <span>{step.error_message}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Sidebar Column */}
+        <div className="space-y-6 px-1">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+                Timeline
+              </span>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Started</span>
+                  <span className="font-medium">
+                    {formatDate(run.started_at)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Finished</span>
+                  <span className="font-medium">
+                    {formatDate(run.finished_at)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-border/40 space-y-2.5">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-bold block px-0.5">
+                Execution Details
+              </span>
+              <div className="flex items-center justify-between p-2 rounded-xl bg-muted/10 border border-border/40">
+                <span className="text-[11px] font-mono text-muted-foreground/60 truncate pl-1">
+                  {run.id}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground/30 hover:text-foreground transition-all"
+                >
+                  <Info className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {run.error_message && (
+          <Card className="p-5! border-destructive/20 bg-destructive/5 space-y-3">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <h3 className="text-[13px] font-bold">Critical Failure</h3>
+            </div>
+            <p className="text-[12px] text-destructive/90 leading-relaxed italic">
+              "{run.error_message}"
+            </p>
+            <div className="pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-destructive hover:bg-destructive/10"
+              >
+                View Documentation
+              </Button>
+            </div>
+          </Card>
         )}
       </div>
     </div>

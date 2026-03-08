@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { PipelineGraph } from "@/components/pipeline-builder/PipelineGraph";
 import { PipelineSidebar } from "@/components/pipeline-builder/PipelineSidebar";
+import { NodePropertiesPanel } from "@/components/pipeline-builder/NodePropertiesPanel";
 import { usePipeline } from "@/hooks/queries/usePipelines";
 import {
   useLatestRevision,
@@ -50,9 +51,8 @@ export function PipelineDetail() {
   const { mutate: createRevision, isPending: isSaving } = useCreateRevision(
     id || "",
   );
-  const { mutate: publishRevision, isPending: isPublishing } = usePublishRevision(
-    id || "",
-  );
+  const { mutate: publishRevision, isPending: isPublishing } =
+    usePublishRevision(id || "");
 
   const [isEditing, setIsEditing] = useState(false);
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -133,13 +133,51 @@ export function PipelineDetail() {
       data: {
         label: kind.charAt(0).toUpperCase() + kind.slice(1),
         kind,
+        config: {},
       },
     };
 
     setNodes((nds) => nds.concat(newNode));
   }, []);
 
+  const handleUpdateNode = useCallback(
+    (id: string, newTargetData: Record<string, unknown>) => {
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id === id) {
+            return { ...n, data: newTargetData };
+          }
+          return n;
+        }),
+      );
+    },
+    [],
+  );
+
+  const selectedNode = nodes.find((n) => n.selected);
+
   const handleSave = () => {
+    // 1. Basic pre-save validation
+    if (nodes.length === 0) {
+      toast.error("Pipeline cannot be empty");
+      return;
+    }
+
+    const unconfiguredNodes = nodes.filter((n) => {
+      const isDataNode = n.data.kind === "extract" || n.data.kind === "load";
+      if (isDataNode) {
+        return !(n.data.config as Record<string, unknown>)?.integration_id;
+      }
+      return false;
+    });
+
+    if (unconfiguredNodes.length > 0) {
+      toast.error(
+        `Please configure integrations for: ${unconfiguredNodes.map((n) => n.data.label).join(", ")}`,
+      );
+      return;
+    }
+
     const revision: RevisionCreate = {
       number: (latestRevision?.number ?? 0) + 1,
       summary: "Updated via Builder",
@@ -149,7 +187,10 @@ export function PipelineDetail() {
         kind: n.data.kind as "extract" | "transform" | "load" | "gate",
         position_x: n.position.x,
         position_y: n.position.y,
-        config: {},
+        config: ((n.data.config as Record<string, unknown>) || {}) as Record<
+          string,
+          string | number | boolean | null
+        >,
       })),
       edges: edges.map((e) => ({
         source_key: e.source,
@@ -263,7 +304,10 @@ export function PipelineDetail() {
                     variant="info"
                     className="h-6 text-[11px] px-2.5 py-0 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-500 flex items-center gap-1.5 font-medium shadow-sm hover:bg-blue-500/20 transition-colors"
                   >
-                    <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2.5} />
+                    <Loader2
+                      className="h-3 w-3 animate-spin"
+                      strokeWidth={2.5}
+                    />
                     {RUN_STATUS[latestRun.status as keyof typeof RUN_STATUS]
                       ?.label || latestRun.status}
                   </Badge>
@@ -325,7 +369,9 @@ export function PipelineDetail() {
                 variant="secondary"
                 size="sm"
                 className="h-8 rounded-full px-3.5 text-xs bg-muted/50 hover:bg-muted border-border/50 transition-all font-medium text-muted-foreground hover:text-foreground"
-                disabled={isPublishing || !latestRevision || latestRevisionIsPublished}
+                disabled={
+                  isPublishing || !latestRevision || latestRevisionIsPublished
+                }
                 onClick={() => {
                   if (!latestRevision) {
                     toast.error("Save a revision before publishing");
@@ -333,7 +379,9 @@ export function PipelineDetail() {
                   }
                   publishRevision(latestRevision.id, {
                     onSuccess: () =>
-                      toast.success(`Published revision v${latestRevision.number}`),
+                      toast.success(
+                        `Published revision v${latestRevision.number}`,
+                      ),
                     onError: (err: unknown) => {
                       const error = err as {
                         response?: { data?: { detail?: string } };
@@ -349,7 +397,10 @@ export function PipelineDetail() {
                 {isPublishing ? (
                   <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 ) : latestRevisionIsPublished ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" strokeWidth={1.5} />
+                  <CheckCircle2
+                    className="h-3.5 w-3.5 mr-1.5"
+                    strokeWidth={1.5}
+                  />
                 ) : (
                   <Upload className="h-3.5 w-3.5 mr-1.5" strokeWidth={1.5} />
                 )}
@@ -437,7 +488,20 @@ export function PipelineDetail() {
           )}
         </div>
 
-        {isEditing && <PipelineSidebar />}
+        {isEditing &&
+          (selectedNode ? (
+            <NodePropertiesPanel
+              key={selectedNode.id}
+              node={selectedNode}
+              onUpdate={handleUpdateNode}
+              onClose={() => {
+                // Deselect via React Flow changes
+                setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+              }}
+            />
+          ) : (
+            <PipelineSidebar />
+          ))}
       </main>
     </div>
   );

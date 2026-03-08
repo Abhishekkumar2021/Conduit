@@ -36,6 +36,13 @@ def test_graph_roots_and_leaves():
     assert graph.get_leaves() == ["2"]
 
 
+def test_graph_validate_valid_dag():
+    n1 = Node(id="1", key="s1", label="E", kind="extract")
+    n2 = Node(id="2", key="s2", label="L", kind="load")
+    graph = Graph([n1, n2], [{"source_id": "1", "target_id": "2"}])
+    assert graph.validate() is True
+
+
 def test_runner_basic_flow():
     # Mock adapters and registry
     n1 = Node(

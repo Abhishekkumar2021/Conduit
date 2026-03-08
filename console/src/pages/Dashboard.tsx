@@ -113,50 +113,50 @@ export function Dashboard() {
             const pipelineName =
               pipelineMap.get(run.pipeline_id)?.name || "Unknown Pipeline";
             return (
-              <Card key={run.id} hover className="p-3! sm:p-3.5!">
-                <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="hidden sm:flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <Card key={run.id} hover className="p-4 sm:p-5">
+                <div className="flex items-center gap-4 sm:gap-6">
+                  <div className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/20 border border-border/10">
                     {run.status === "succeeded" && (
                       <CheckCircle2
-                        className="h-4 w-4 text-success"
-                        strokeWidth={2.5}
+                        className="h-4.5 w-4.5 text-emerald-500"
+                        strokeWidth={2}
                       />
                     )}
                     {run.status === "failed" && (
                       <AlertTriangle
-                        className="h-4 w-4 text-destructive"
-                        strokeWidth={2.5}
+                        className="h-4.5 w-4.5 text-rose-500"
+                        strokeWidth={2}
                       />
                     )}
                     {run.status === "running" && (
                       <Loader2
-                        className="h-4 w-4 animate-spin text-blue-500"
-                        strokeWidth={2.5}
+                        className="h-4.5 w-4.5 animate-spin text-primary"
+                        strokeWidth={2}
                       />
                     )}
                     {run.status === "pending" && (
                       <Clock
-                        className="h-4 w-4 text-muted-foreground"
-                        strokeWidth={2.5}
+                        className="h-4.5 w-4.5 text-muted-foreground/30"
+                        strokeWidth={2}
                       />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-foreground">
+                    <p className="truncate text-sm font-bold text-foreground tracking-tight">
                       {pipelineName}
                     </p>
-                    <div className="mt-0.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1">
+                    <div className="mt-1 flex items-center gap-3 text-[11px] font-medium text-muted-foreground/60">
+                      <span className="flex items-center gap-1.5 capitalize tracking-wide">
                         <Clock className="h-3 w-3" />
-                        Trigger: {run.trigger_type}
+                        {run.trigger_type} trigger
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-4">
                     <Badge
                       variant={st.variant}
                       dot
-                      className="rounded-full px-2 py-0 h-[20px] shadow-sm"
+                      className="px-1.5 py-0 h-4 text-[9px] font-bold rounded-lg bg-transparent border-none"
                     >
                       {st.label}
                     </Badge>

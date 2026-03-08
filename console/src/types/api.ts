@@ -63,6 +63,7 @@ export interface Integration {
   adapter_type: string;
   status: "healthy" | "degraded" | "unreachable";
   status_message?: string;
+  config?: Record<string, string | number | boolean | null>;
   last_sync_at?: string;
 }
 

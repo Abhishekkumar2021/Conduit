@@ -45,6 +45,20 @@ class WorkspaceService:
         """Get workspace by ID."""
         return await self.workspace_repo.get(id)
 
+    async def update_workspace(self, id: UUID, **kwargs) -> Workspace | None:
+        """Update workspace details."""
+        workspace = await self.workspace_repo.update(id, kwargs)
+        if workspace:
+            logger.info(f"Workspace {id} updated successfully")
+        return workspace
+
+    async def delete_workspace(self, id: UUID) -> bool:
+        """Delete a workspace."""
+        success = await self.workspace_repo.delete(id)
+        if success:
+            logger.info(f"Workspace {id} deleted successfully")
+        return success
+
     async def get_user_workspaces(self, user_id: UUID) -> Sequence[Member]:
         """List all workspaces a user belongs to."""
         return await self.member_repo.get_user_workspaces(user_id)

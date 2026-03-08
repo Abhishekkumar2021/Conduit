@@ -15,6 +15,11 @@ class PipelineCreate(BaseModel):
     description: str = ""
 
 
+class PipelineUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
 class PipelineResponse(BaseModel):
     id: UUID
     workspace_id: UUID
@@ -107,6 +112,36 @@ async def get_pipeline(
     if not pipeline:
         raise HTTPException(status_code=404, detail="Pipeline not found")
     return pipeline
+
+
+@router.patch(
+    "/pipelines/{pipeline_id}",
+    response_model=PipelineResponse,
+)
+async def update_pipeline(
+    pipeline_id: UUID,
+    req: PipelineUpdate,
+    pipeline_service: PipelineService = Depends(get_pipeline_service),
+):
+    pipeline = await pipeline_service.update_pipeline(
+        pipeline_id, **req.model_dump(exclude_unset=True)
+    )
+    if not pipeline:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
+    return pipeline
+
+
+@router.delete(
+    "/pipelines/{pipeline_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_pipeline(
+    pipeline_id: UUID,
+    pipeline_service: PipelineService = Depends(get_pipeline_service),
+):
+    success = await pipeline_service.delete_pipeline(pipeline_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Pipeline not found")
 
 
 @router.post(

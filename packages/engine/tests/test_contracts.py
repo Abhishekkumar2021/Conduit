@@ -40,7 +40,8 @@ def test_validate_run_claim_payload_missing_field():
     payload = _valid_payload()
     del payload["workspace_id"]
     with pytest.raises(
-        RunClaimPayloadValidationError, match="'workspace_id' must be a non-empty string"
+        RunClaimPayloadValidationError,
+        match="'workspace_id' must be a non-empty string",
     ):
         validate_run_claim_payload(payload)
 
@@ -59,5 +60,23 @@ def test_validate_run_claim_payload_rejects_bad_integration_configs():
     payload["integration_configs"] = {"int-1": "not-an-object"}
     with pytest.raises(
         RunClaimPayloadValidationError, match="integration_configs.int-1"
+    ):
+        validate_run_claim_payload(payload)
+
+
+def test_validate_run_claim_payload_rejects_non_list_edges():
+    payload = _valid_payload()
+    payload["graph"]["edges"] = "not-a-list"
+    with pytest.raises(
+        RunClaimPayloadValidationError, match="'graph.edges' must be an array"
+    ):
+        validate_run_claim_payload(payload)
+
+
+def test_validate_run_claim_payload_rejects_missing_source():
+    payload = _valid_payload()
+    payload["graph"]["edges"][0]["source"] = "missing-node"
+    with pytest.raises(
+        RunClaimPayloadValidationError, match="not found in graph.nodes"
     ):
         validate_run_claim_payload(payload)

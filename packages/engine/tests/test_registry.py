@@ -38,3 +38,10 @@ def test_registry_rejects_noncanonical_adapter_name():
     assert AdapterRegistry.get("postgresql") is _DummyAdapter
     with pytest.raises(KeyError):
         AdapterRegistry.get("pg")
+
+
+def test_registry_discover_skips_non_dirs(monkeypatch):
+    AdapterRegistry.reset()
+    monkeypatch.setattr("pathlib.Path.is_dir", lambda *a: False)
+    AdapterRegistry.discover()
+    assert len(AdapterRegistry._adapters) == 0

@@ -63,6 +63,50 @@ export function useCreateIntegration(workspaceId: string) {
   });
 }
 
+export function useUpdateIntegration(workspaceId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    Integration,
+    Error,
+    {
+      id: string;
+      data: {
+        name?: string;
+        config?: Record<string, string | number | boolean | null>;
+      };
+    }
+  >({
+    mutationFn: async ({ id, data }) => {
+      const { data: response } = await api.patch<Integration>(
+        `/integrations/${id}`,
+        data,
+      );
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: integrationKeys.list(workspaceId),
+      });
+    },
+  });
+}
+
+export function useDeleteIntegration(workspaceId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: async (id: string) => {
+      await api.delete(`/integrations/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: integrationKeys.list(workspaceId),
+      });
+    },
+  });
+}
+
 export function useIntegrationAssets(integrationId?: string | null) {
   return useQuery({
     queryKey: [...integrationKeys.all, "assets", integrationId],
@@ -77,14 +121,13 @@ export function useIntegrationAssets(integrationId?: string | null) {
   });
 }
 
-export function useDiscoverAssets(integrationId?: string | null) {
+export function useDiscoverAssets(workspaceId: string) {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async () => {
-      if (!integrationId) throw new Error("No integration selected");
+  return useMutation<Integration, Error, string>({
+    mutationFn: async (id: string) => {
       const { data } = await api.post<Integration>(
-        `/integrations/${integrationId}/discover`,
+        `/integrations/${id}/discover`,
       );
       if (
         data.status === "unreachable" ||
@@ -94,14 +137,51 @@ export function useDiscoverAssets(integrationId?: string | null) {
       }
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({
-        queryKey: [...integrationKeys.all, "assets", integrationId],
+        queryKey: [...integrationKeys.all, "assets", id],
       });
-      // We also invalidate integrations list because its status might change to healthy/error
+      queryClient.invalidateQueries({
+        queryKey: integrationKeys.list(workspaceId),
+      });
+    },
+  });
+}
+
+export function useTestConnection() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Integration, Error, string>({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post<Integration>(`/integrations/${id}/test`);
+      if (
+        data.status === "unreachable" ||
+        data.status === ("error" as string)
+      ) {
+        throw new Error(data.status_message || "Connection test failed.");
+      }
+      return data;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: integrationKeys.all,
       });
     },
+  });
+}
+
+interface RunnerStatus {
+  missing_variables: string[];
+  is_healthy: boolean;
+}
+
+export function useRunnerStatus() {
+  return useQuery({
+    queryKey: ["runner-status"],
+    queryFn: async () => {
+      const { data } = await api.get<RunnerStatus>("/system/runner-status");
+      return data;
+    },
+    refetchInterval: 30000,
   });
 }

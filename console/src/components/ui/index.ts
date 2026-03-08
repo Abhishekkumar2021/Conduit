@@ -6,3 +6,4 @@ export { PageHeader } from "./PageHeader";
 export { StatCard } from "./StatCard";
 export { Table } from "./Table";
 export * from "./Select";
+export * from "./DropdownMenu";

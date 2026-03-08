@@ -18,6 +18,7 @@ import { useState } from "react";
 interface AssetDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  workspaceId: string;
   integrationId: string | null;
   integrationName: string | null;
 }
@@ -25,6 +26,7 @@ interface AssetDrawerProps {
 export function AssetDrawer({
   isOpen,
   onClose,
+  workspaceId,
   integrationId,
   integrationName,
 }: AssetDrawerProps) {
@@ -36,7 +38,7 @@ export function AssetDrawer({
     mutate: discoverAssets,
     isPending: isDiscovering,
     error: discoverError,
-  } = useDiscoverAssets(integrationId);
+  } = useDiscoverAssets(workspaceId);
 
   if (!isOpen) return null;
 
@@ -63,7 +65,7 @@ export function AssetDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            className="p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
           >
             <X className="h-4 w-4" />
           </button>
@@ -79,17 +81,18 @@ export function AssetDrawer({
                 placeholder="Search tables and views..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-[12px] bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                className="w-full pl-8 pr-3 py-1.5 text-[12px] bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all shadow-sm"
               />
             </div>
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => discoverAssets()}
+              onClick={() => discoverAssets(integrationId || "")}
               disabled={isDiscovering || !integrationId}
+              className="h-8 text-[11px] font-bold rounded-lg"
             >
               <RefreshCw
-                className={`h-3.5 w-3.5 ${isDiscovering ? "animate-spin opacity-50" : ""}`}
+                className={`h-3.5 w-3.5 mr-1.5 ${isDiscovering ? "animate-spin opacity-50" : ""}`}
               />
               {isDiscovering ? "Running..." : "Run Discovery"}
             </Button>
@@ -106,24 +109,24 @@ export function AssetDrawer({
           )}
 
           {isAssetsLoading ? (
-            <div className="flex-1 flex items-center justify-center text-[12px] text-muted-foreground">
+            <div className="flex-1 flex items-center justify-center text-[12px] text-muted-foreground font-medium">
               Loading assets...
             </div>
           ) : filteredAssets.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border border-dashed border-border/50 rounded-xl mt-4">
-              <Database className="h-8 w-8 text-muted-foreground/50 mb-3" />
-              <p className="text-[13px] font-medium text-foreground mb-1">
+              <Database className="h-8 w-8 text-muted-foreground/30 mb-3" />
+              <p className="text-[13px] font-bold text-foreground mb-1">
                 No Assets Found
               </p>
-              <p className="text-[12px] text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground/60 font-medium">
                 {searchTerm
                   ? "Try adjusting your search query."
-                  : "Click 'Run Discovery' to fetch schemas from the source."}
+                  : "Click 'Run Discovery' to fetch schemas from the source source."}
               </p>
             </div>
           ) : (
             <div className="space-y-2 mt-2">
-              <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-2 pb-2 border-b border-border/50">
+              <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-2 pb-2 border-b border-border/50">
                 <span>Asset Name</span>
                 <span>Type</span>
               </div>
@@ -131,21 +134,21 @@ export function AssetDrawer({
                 {filteredAssets.map((asset) => (
                   <div
                     key={asset.id}
-                    className="flex items-center justify-between p-2 rounded-md hover:bg-accent/50 group transition-colors"
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 group transition-colors"
                   >
                     <div className="flex items-center gap-2.5 overflow-hidden">
                       {asset.asset_type === "view" ? (
-                        <LayoutTemplate className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                        <LayoutTemplate className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                       ) : (
                         <Table2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                       )}
-                      <span className="text-[12px] text-foreground truncate font-mono">
+                      <span className="text-[12px] text-foreground truncate font-mono font-medium">
                         {asset.qualified_name}
                       </span>
                     </div>
                     <Badge
                       variant="info"
-                      className="text-[10px] shrink-0 bg-background/50"
+                      className="text-[9px] font-bold h-4 px-1.5 shrink-0 bg-background/50 border-border/40"
                     >
                       {asset.asset_type}
                     </Badge>

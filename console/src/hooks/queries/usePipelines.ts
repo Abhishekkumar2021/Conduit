@@ -52,3 +52,45 @@ export function useCreatePipeline(workspaceId: string) {
     },
   });
 }
+export function useUpdatePipeline(workspaceId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { name?: string; description?: string };
+    }) => {
+      const { data: response } = await api.patch<Pipeline>(
+        `/pipelines/${id}`,
+        data,
+      );
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: pipelineKeys.list(workspaceId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: pipelineKeys.all,
+      });
+    },
+  });
+}
+
+export function useDeletePipeline(workspaceId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/pipelines/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: pipelineKeys.list(workspaceId),
+      });
+    },
+  });
+}

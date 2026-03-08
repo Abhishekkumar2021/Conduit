@@ -146,6 +146,19 @@ async def test_workspace_service_get_not_found(db_session):
     assert fetched is None
 
 
+@pytest.mark.asyncio
+async def test_workspace_service_update(db_session):
+    user = await _create_user(db_session, "ws_upd@test.com")
+    svc = _make_workspace_service(db_session)
+    ws = await svc.create_workspace(name="WS-Upd", slug="ws-upd", owner_id=user.id)
+    updated = await svc.update_workspace(
+        ws.id, name="Updated Name", slug="updated-slug"
+    )
+    assert updated is not None
+    assert updated.name == "Updated Name"
+    assert updated.slug == "updated-slug"
+
+
 # ── PipelineService ──────────────────────────────────────────────────────────
 
 
@@ -455,6 +468,66 @@ async def test_integration_service_sync_assets_salesforce_collection(
     assets = await svc.asset_repo.get_by_integration(integ.id)
     assert len(assets) == 2
     assert {a.asset_type for a in assets} == {"collection"}
+
+
+@pytest.mark.asyncio
+async def test_integration_service_test_connection_success(db_session, monkeypatch):
+    from conduit.engine.adapters.registry import AdapterRegistry
+
+    user = await _create_user(db_session, "int_test_success@test.com")
+    ws = await _create_workspace(db_session, user.id, "Test Success WS", "ts-ws")
+    svc = _make_integration_service(db_session)
+
+    integ = await svc.register_integration(
+        workspace_id=ws.id,
+        name="Test PG",
+        adapter_type="postgresql",
+        config={"host": "localhost"},
+    )
+
+    class FakeAdapterSuccess:
+        def test(self):
+            return True
+
+    monkeypatch.setattr(
+        AdapterRegistry,
+        "create",
+        classmethod(lambda cls, adapter_type, config: FakeAdapterSuccess()),
+    )
+
+    tested = await svc.test_connection(integ.id)
+    assert tested.status == "healthy"
+    assert "successful" in (tested.status_message or "")
+
+
+@pytest.mark.asyncio
+async def test_integration_service_test_connection_failure(db_session, monkeypatch):
+    from conduit.engine.adapters.registry import AdapterRegistry
+
+    user = await _create_user(db_session, "int_test_fail@test.com")
+    ws = await _create_workspace(db_session, user.id, "Test Fail WS", "tf-ws")
+    svc = _make_integration_service(db_session)
+
+    integ = await svc.register_integration(
+        workspace_id=ws.id,
+        name="Test PG",
+        adapter_type="postgresql",
+        config={"host": "localhost"},
+    )
+
+    class FakeAdapterFail:
+        def test(self):
+            return False
+
+    monkeypatch.setattr(
+        AdapterRegistry,
+        "create",
+        classmethod(lambda cls, adapter_type, config: FakeAdapterFail()),
+    )
+
+    tested = await svc.test_connection(integ.id)
+    assert tested.status == "unreachable"
+    assert "failed" in (tested.status_message or "")
 
 
 # ── RunService ───────────────────────────────────────────────────────────────

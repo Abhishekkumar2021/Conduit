@@ -26,7 +26,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all duration-150",
+        "inline-flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all duration-150",
         "active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50",
         size === "sm" ? "px-2.5 py-1.5 text-[12px]" : "px-3.5 py-2 text-[13px]",
         BUTTON_STYLES[variant],

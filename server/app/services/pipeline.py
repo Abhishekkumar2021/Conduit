@@ -162,3 +162,17 @@ class PipelineService:
         updated = await self.pipeline_repo.get(pipeline_id)
         logger.info("Published revision %s for pipeline %s", revision_id, pipeline_id)
         return updated
+
+    async def update_pipeline(self, pipeline_id: UUID, **kwargs) -> Pipeline | None:
+        """Update a pipeline."""
+        pipeline = await self.pipeline_repo.update(pipeline_id, kwargs)
+        if pipeline:
+            logger.info(f"Pipeline {pipeline_id} updated successfully")
+        return pipeline
+
+    async def delete_pipeline(self, pipeline_id: UUID) -> bool:
+        """Delete a pipeline and all its revisions."""
+        success = await self.pipeline_repo.delete(pipeline_id)
+        if success:
+            logger.info(f"Pipeline {pipeline_id} deleted successfully")
+        return success

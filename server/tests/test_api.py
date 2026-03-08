@@ -59,6 +59,14 @@ async def test_create_and_get_workspace(db_session):
         ids = {w["id"] for w in response.json()}
         assert ws_id in ids
 
+        # Update workspace
+        update_payload = {"name": "Updated WS", "slug": "updated-ws"}
+        response = await ac.patch(f"/api/v1/workspaces/{ws_id}", json=update_payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Updated WS"
+        assert data["slug"] == "updated-ws"
+
 
 @pytest.mark.asyncio
 async def test_get_workspace_not_found():
@@ -225,7 +233,9 @@ async def test_run_detail_endpoint_returns_steps(db_session):
     pipe = await PipelineRepository(db_session).create(
         {"workspace_id": ws.id, "name": "Run Detail Pipe"}
     )
-    rev = await RevisionRepository(db_session).create({"pipeline_id": pipe.id, "number": 1})
+    rev = await RevisionRepository(db_session).create(
+        {"pipeline_id": pipe.id, "number": 1}
+    )
 
     run = await RunRepository(db_session).create(
         {
@@ -468,6 +478,46 @@ async def test_asset_discovery_endpoints(db_session, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_integration_test_connection_endpoint(db_session, monkeypatch):
+    from app.infra.database.repositories.user import UserRepository
+    from app.infra.database.repositories.workspace import WorkspaceRepository
+    from app.services.integration import IntegrationService
+
+    user = await UserRepository(db_session).create(
+        {"email": "testconn@test.com", "display_name": "API User"}
+    )
+    ws = await WorkspaceRepository(db_session).create(
+        {"name": "TestConn WS", "slug": "testconn-ws", "created_by": user.id}
+    )
+
+    async def mock_test_connection(self, integration_id):
+        integration = await self.integration_repo.get(integration_id)
+        integration.status = "healthy"
+        integration.status_message = "Connection successful"
+        await self.integration_repo.update(
+            integration.id,
+            {"status": "healthy", "status_message": "Connection successful"},
+        )
+        return integration
+
+    monkeypatch.setattr(IntegrationService, "test_connection", mock_test_connection)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        # Create integration
+        payload = {"name": "Test Source", "adapter_type": "postgresql", "config": {}}
+        resp = await ac.post(f"/api/v1/workspaces/{ws.id}/integrations", json=payload)
+        assert resp.status_code == 201
+        int_id = resp.json()["id"]
+
+        # Test Connection
+        resp = await ac.post(f"/api/v1/integrations/{int_id}/test")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "healthy"
+
+
+@pytest.mark.asyncio
 async def test_create_integration_invalid_adapter_returns_400(db_session):
     from app.infra.database.repositories.user import UserRepository
     from app.infra.database.repositories.workspace import WorkspaceRepository
@@ -476,7 +526,11 @@ async def test_create_integration_invalid_adapter_returns_400(db_session):
         {"email": "invalid_adapter@test.com", "display_name": "API User"}
     )
     ws = await WorkspaceRepository(db_session).create(
-        {"name": "Invalid Adapter WS", "slug": "invalid-adapter-ws", "created_by": user.id}
+        {
+            "name": "Invalid Adapter WS",
+            "slug": "invalid-adapter-ws",
+            "created_by": user.id,
+        }
     )
 
     async with AsyncClient(

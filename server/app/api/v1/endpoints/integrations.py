@@ -38,6 +38,11 @@ class IntegrationCreate(BaseModel):
     config: dict[str, Any]
 
 
+class IntegrationUpdate(BaseModel):
+    name: str | None = None
+    config: dict[str, Any] | None = None
+
+
 class IntegrationResponse(BaseModel):
     id: UUID
     name: str
@@ -80,6 +85,36 @@ async def list_integrations(
     return await integration_service.get_workspace_integrations(workspace_id)
 
 
+@router.patch(
+    "/integrations/{integration_id}",
+    response_model=IntegrationResponse,
+)
+async def update_integration(
+    integration_id: UUID,
+    req: IntegrationUpdate,
+    integration_service: IntegrationService = Depends(get_integration_service),
+):
+    integration = await integration_service.update_integration(
+        integration_id, **req.model_dump(exclude_unset=True)
+    )
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    return integration
+
+
+@router.delete(
+    "/integrations/{integration_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_integration(
+    integration_id: UUID,
+    integration_service: IntegrationService = Depends(get_integration_service),
+):
+    success = await integration_service.delete_integration(integration_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+
 class AssetResponse(BaseModel):
     id: UUID
     integration_id: UUID
@@ -100,6 +135,18 @@ async def discover_integration_assets(
 ):
     """Trigger the engine adapter to natively fetch and sync table schemas."""
     return await integration_service.sync_assets(integration_id)
+
+
+@router.post(
+    "/integrations/{integration_id}/test",
+    response_model=IntegrationResponse,
+)
+async def test_integration_connection(
+    integration_id: UUID,
+    integration_service: IntegrationService = Depends(get_integration_service),
+):
+    """Test the connection of an integration via the engine adapter."""
+    return await integration_service.test_connection(integration_id)
 
 
 @router.get(
