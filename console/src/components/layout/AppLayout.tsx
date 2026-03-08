@@ -5,7 +5,6 @@ import {
   GitBranch,
   Plug,
   Play,
-  Settings,
   Zap,
   ChevronRight,
   Menu,
@@ -23,7 +22,6 @@ const NAV_ITEMS = [
   { to: "/pipelines", label: "Pipelines", icon: GitBranch },
   { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/runs", label: "Runs", icon: Play },
-  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 /* ─── Logo ──────────────────────────────────────────────────── */
@@ -68,12 +66,7 @@ function SidebarContent({
         <Logo collapsed={collapsed} />
       </div>
 
-      <nav className="mt-5 flex flex-col gap-0.5 px-2">
-        {!collapsed && (
-          <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground whitespace-nowrap overflow-hidden">
-            Platform
-          </p>
-        )}
+      <nav className="mt-8 flex flex-col gap-1 px-3">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
@@ -85,8 +78,8 @@ function SidebarContent({
                 "group flex items-center rounded-lg py-2 font-medium transition-all duration-150 overflow-hidden",
                 collapsed ? "justify-center px-0" : "gap-2.5 px-3",
                 isActive
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground/60 hover:bg-accent/50 hover:text-foreground",
               )
             }
           >
@@ -97,17 +90,17 @@ function SidebarContent({
                     "h-4 w-4 shrink-0 transition-colors",
                     isActive
                       ? "text-primary"
-                      : "text-muted-foreground group-hover:text-foreground",
+                      : "text-muted-foreground/60 group-hover:text-foreground",
                   )}
-                  strokeWidth={1.8}
+                  strokeWidth={2}
                 />
                 {!collapsed && (
                   <>
-                    <span className="flex-1 text-[13px] whitespace-nowrap">
+                    <span className="flex-1 text-[13px] tracking-tight">
                       {item.label}
                     </span>
                     {isActive && (
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <div className="h-1.5 w-1.5 rounded-full bg-primary/60" />
                     )}
                   </>
                 )}

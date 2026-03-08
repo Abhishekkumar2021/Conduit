@@ -9,7 +9,6 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -20,6 +19,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/Table";
 import {
   INTEGRATION_STATUS,
   ADAPTER_UI_MAP,
@@ -130,7 +137,7 @@ export function Integrations() {
   };
 
   return (
-    <div className="fade-in p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="fade-in p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       <PageHeader
         title="Integrations"
         description="Connect your data sources and destinations"
@@ -177,134 +184,143 @@ export function Integrations() {
           </div>
         )}
 
-      <div className="max-w-7xl grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div>
         {isIntegrationsLoading && (
-          <>
+          <div className="space-y-2 mt-4">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-[156px] w-full" />
+              <Skeleton key={i} className="h-[64px] w-full" />
             ))}
-          </>
+          </div>
         )}
         {!isIntegrationsLoading && integrations?.length === 0 && (
-          <div className="col-span-full rounded-xl border border-dashed border-border/50 p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-dashed border-border/50 p-8 text-center text-muted-foreground mt-4">
             No integrations found. Connect your first data source to begin.
           </div>
         )}
 
-        {integrations?.map((int) => {
-          const status = int.status || "healthy";
-          const st =
-            INTEGRATION_STATUS[status as keyof typeof INTEGRATION_STATUS] ||
-            INTEGRATION_STATUS.healthy;
-          const uiProvider =
-            ADAPTER_UI_MAP[int.adapter_type] || DEFAULT_ADAPTER;
-          const IconComponent = uiProvider.icon;
+        {!isIntegrationsLoading && integrations && integrations.length > 0 && (
+          <div className="mt-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[300px]">Integration</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Health</TableHead>
+                  <TableHead>Last Sync</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {integrations.map((int) => {
+                  const status = int.status || "healthy";
+                  const st =
+                    INTEGRATION_STATUS[status as keyof typeof INTEGRATION_STATUS] ||
+                    INTEGRATION_STATUS.healthy;
+                  const uiProvider =
+                    ADAPTER_UI_MAP[int.adapter_type] || DEFAULT_ADAPTER;
+                  const IconComponent = uiProvider.icon;
 
-          return (
-            <Card
-              key={int.id}
-              hover
-              className="group border-border/60 hover:border-primary/20 transition-all duration-200"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br ${uiProvider.color} shadow-md border border-white/20`}
-                  >
-                    <IconComponent className="h-6 w-6" strokeWidth={2} />
-                  </div>
-                  <div>
-                    <h3 className="text-[14px] font-bold text-foreground/90 tracking-tight">
-                      {int.name}
-                    </h3>
-                    <p className="text-[11px] font-bold text-muted-foreground/50 capitalize mt-0.5 tracking-wide">
-                      {int.adapter_type}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <Badge
-                    variant={st.variant}
-                    dot
-                    className="px-2 py-0.5 h-4.5 text-[9px] font-bold rounded-lg border border-border/50 bg-muted/20 text-foreground/70"
-                  >
-                    {st.label}
-                  </Badge>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditMode(int)}>
-                        <Pencil className="h-3.5 w-3.5 mr-2" />
-                        Edit Settings
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleTestConnection(int.id)}
-                      >
-                        <Plug2 className="h-3.5 w-3.5 mr-2" />
-                        Test Connection
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="danger"
-                        onClick={() => handleDelete(int.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 mr-2" />
-                        Delete Integration
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-
-              <div className="mt-5 flex items-center justify-between border-t border-border/30 pt-4 text-[11px] text-muted-foreground/50">
-                <div className="flex items-center gap-2 font-bold tracking-tight">
-                  {status === "healthy" ? (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                      <span className="text-emerald-700 dark:text-emerald-400/80">
-                        Active
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]" />
-                      <span className="text-rose-700 dark:text-rose-400/80">
-                        Inactive
-                      </span>
-                    </>
-                  )}
-                </div>
-                <span className="font-bold tabular-nums text-muted-foreground/60">
-                  {int.last_sync_at
-                    ? `Synced ${new Date(int.last_sync_at).toLocaleDateString()}`
-                    : "Wait for sync"}
-                </span>
-              </div>
-
-              <div className="mt-4 flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-1 bg-muted/30 hover:bg-muted text-[11px] font-bold h-9 rounded-xl transition-all"
-                  onClick={() =>
-                    setSelectedDrawerIntegration({ id: int.id, name: int.name })
-                  }
-                >
-                  <Database className="h-3.5 w-3.5 mr-2 opacity-60" />
-                  Browse Assets
-                </Button>
-              </div>
-            </Card>
-          );
-        })}
+                  return (
+                    <TableRow key={int.id} className="group">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-9 w-9 items-center justify-center rounded-lg bg-linear-to-br ${uiProvider.color} border border-white/10 shrink-0 shadow-sm`}
+                          >
+                            <IconComponent className="h-4.5 w-4.5 text-white" strokeWidth={2.5} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground tracking-tight">
+                              {int.name}
+                            </h3>
+                            <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-0.5">
+                              {int.adapter_type}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={st.variant}
+                          dot
+                          className="px-1.5 py-0 h-4 text-[10px] font-bold rounded-md bg-transparent border-none text-muted-foreground/70"
+                        >
+                          {st.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 font-semibold text-[12px]">
+                          {status === "healthy" ? (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <span className="text-emerald-600/80 dark:text-emerald-500/80">Active</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="w-2 h-2 rounded-full bg-rose-500" />
+                              <span className="text-rose-600/80 dark:text-rose-500/80">Inactive</span>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {int.last_sync_at
+                          ? new Date(int.last_sync_at).toLocaleDateString()
+                          : "No sync"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-[11px] font-semibold text-muted-foreground/70 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity bg-muted/20 hover:bg-muted/50"
+                            onClick={() =>
+                              setSelectedDrawerIntegration({ id: int.id, name: int.name })
+                            }
+                          >
+                            <Database className="h-3.5 w-3.5 mr-1.5 opacity-70" />
+                            Assets
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <MoreHorizontal className="h-4 w-4 text-muted-foreground/60" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl">
+                              <DropdownMenuItem onClick={() => openEditMode(int)}>
+                                <Pencil className="h-3.5 w-3.5 mr-2" />
+                                Edit Settings
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleTestConnection(int.id)}
+                              >
+                                <Plug2 className="h-3.5 w-3.5 mr-2" />
+                                Test Connection
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="danger"
+                                onClick={() => handleDelete(int.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
 
       <AssetDrawer

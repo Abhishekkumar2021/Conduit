@@ -10,13 +10,21 @@ import {
   TrendingUp,
   Activity,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/Table";
 import { RUN_STATUS } from "@/lib/constants";
 
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
@@ -29,6 +37,7 @@ import { useIntegrations } from "@/hooks/queries/useIntegrations";
 export function Dashboard() {
   const { data: workspaces } = useWorkspaces();
   const workspaceId = workspaces?.[0]?.id ?? "";
+  const navigate = useNavigate();
 
   const { data: pipelines } = usePipelines(workspaceId);
   const { data: runs, isLoading: isRunsLoading } = useRuns(workspaceId);
@@ -42,7 +51,7 @@ export function Dashboard() {
   const displayRuns = runs?.slice(0, 5) || [];
 
   return (
-    <div className="fade-in p-4 sm:p-6 lg:p-8">
+    <div className="fade-in p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       <PageHeader
         title="Dashboard"
         description="Overview of your data platform"
@@ -84,87 +93,114 @@ export function Dashboard() {
 
       {/* Recent Runs */}
       <div className="mt-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Recent Runs</h2>
+        <div className="flex items-center justify-between mb-4 px-1">
+          <h2 className="text-[13px] font-bold uppercase tracking-wider text-muted-foreground/50">
+            Recent Activity
+          </h2>
           <Link
             to="/runs"
-            className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            className="flex items-center gap-1 text-[11px] font-bold text-primary/70 hover:text-primary transition-colors uppercase tracking-tight"
           >
-            View All <ArrowUpRight className="h-3 w-3" />
+            History <ArrowUpRight className="h-3 w-3" />
           </Link>
         </div>
-        <div className="mt-3 space-y-2">
+        <div>
           {isRunsLoading && (
-            <div className="space-y-2">
+            <div className="space-y-2 mt-4">
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-[68px] w-full" />
+                <Skeleton key={i} className="h-[64px] w-full rounded-xl" />
               ))}
             </div>
           )}
           {!isRunsLoading && displayRuns.length === 0 && (
-            <p className="text-sm text-muted-foreground p-4 text-center rounded-lg border border-dashed border-border/50">
-              No recent run activity found.
-            </p>
+            <div className="text-[13px] text-muted-foreground/30 p-8 text-center rounded-2xl border border-dashed border-border/40 mt-4">
+              No recent execution history.
+            </div>
           )}
-          {displayRuns.map((run) => {
-            const st =
-              RUN_STATUS[run.status as keyof typeof RUN_STATUS] ||
-              RUN_STATUS.pending;
-            const pipelineName =
-              pipelineMap.get(run.pipeline_id)?.name || "Unknown Pipeline";
-            return (
-              <Card key={run.id} hover className="p-4 sm:p-5">
-                <div className="flex items-center gap-4 sm:gap-6">
-                  <div className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/20 border border-border/10">
-                    {run.status === "succeeded" && (
-                      <CheckCircle2
-                        className="h-4.5 w-4.5 text-emerald-500"
-                        strokeWidth={2}
-                      />
-                    )}
-                    {run.status === "failed" && (
-                      <AlertTriangle
-                        className="h-4.5 w-4.5 text-rose-500"
-                        strokeWidth={2}
-                      />
-                    )}
-                    {run.status === "running" && (
-                      <Loader2
-                        className="h-4.5 w-4.5 animate-spin text-primary"
-                        strokeWidth={2}
-                      />
-                    )}
-                    {run.status === "pending" && (
-                      <Clock
-                        className="h-4.5 w-4.5 text-muted-foreground/30"
-                        strokeWidth={2}
-                      />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold text-foreground tracking-tight">
-                      {pipelineName}
-                    </p>
-                    <div className="mt-1 flex items-center gap-3 text-[11px] font-medium text-muted-foreground/60">
-                      <span className="flex items-center gap-1.5 capitalize tracking-wide">
-                        <Clock className="h-3 w-3" />
-                        {run.trigger_type} trigger
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Badge
-                      variant={st.variant}
-                      dot
-                      className="px-1.5 py-0 h-4 text-[9px] font-bold rounded-lg bg-transparent border-none"
-                    >
-                      {st.label}
-                    </Badge>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+          {!isRunsLoading && displayRuns.length > 0 && (
+            <div className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">Status</TableHead>
+                    <TableHead>Run ID</TableHead>
+                    <TableHead>Pipeline</TableHead>
+                    <TableHead>Trigger</TableHead>
+                    <TableHead className="text-right">Started At</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayRuns.map((run) => {
+                    const st =
+                      RUN_STATUS[run.status as keyof typeof RUN_STATUS] ||
+                      RUN_STATUS.pending;
+                    const pipelineName =
+                      pipelineMap.get(run.pipeline_id)?.name || "Unknown Pipeline";
+                    return (
+                      <TableRow
+                        key={run.id}
+                        onClick={() => navigate(`/runs/${run.id}`)}
+                        className="cursor-pointer group"
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {run.status === "succeeded" && (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            )}
+                            {run.status === "failed" && (
+                              <AlertTriangle className="h-4 w-4 text-rose-500" />
+                            )}
+                            {run.status === "running" && (
+                              <Activity className="h-4 w-4 animate-pulse text-primary" />
+                            )}
+                            {run.status === "pending" && (
+                              <Clock className="h-4 w-4 text-muted-foreground/30" />
+                            )}
+                            <Badge
+                              variant={st.variant}
+                              dot
+                              className="px-1.5 py-0 h-4 text-[10px] font-bold rounded-md bg-transparent border-none"
+                            >
+                              {st.label}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-muted-foreground tabular-nums">
+                          #{run.id.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="font-semibold text-foreground/90 group-hover:text-primary transition-colors">
+                          {pipelineName}
+                        </TableCell>
+                        <TableCell className="uppercase text-[11px] text-muted-foreground/80 font-semibold tracking-wider">
+                          {run.trigger_type}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {run.started_at ? (
+                            <>
+                              <span className="font-semibold text-foreground/80 mr-2">
+                                {new Date(run.started_at).toLocaleDateString([], {
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              </span>
+                              <span>
+                                {new Date(run.started_at).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       </div>
     </div>

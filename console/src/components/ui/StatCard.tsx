@@ -15,13 +15,13 @@ export function StatCard({
 }) {
   const isPositive = change?.startsWith("+");
   return (
-    <Card className="p-4 sm:p-5 border-border/60 shadow-sm hover:shadow-md transition-shadow">
+    <Card className="p-4 sm:p-5 border-border/40 hover:border-primary/20 transition-all">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 px-0.5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">
             {label}
           </p>
-          <p className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight text-foreground/90">
+          <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight text-foreground">
             {value}
           </p>
           {change && (
@@ -33,13 +33,13 @@ export function StatCard({
             >
               {change}{" "}
               <span className="text-muted-foreground/60 font-medium ml-0.5">
-                vs last week
+                prev.
               </span>
             </p>
           )}
         </div>
         {icon && (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground/60 border border-border/20 shadow-xs">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/5 text-primary/70 border border-primary/10">
             {icon}
           </div>
         )}

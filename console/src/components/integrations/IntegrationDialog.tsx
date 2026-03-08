@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Plug2, Shield, Lock, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import {
   Select,
   SelectContent,
@@ -122,7 +123,7 @@ export function IntegrationDialog({
         className="absolute inset-0 bg-background/50 backdrop-blur-md animate-in fade-in duration-300"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-lg bg-card shadow-2xl rounded-[32px] border border-border/50 overflow-hidden animate-in zoom-in-95 fade-in duration-200 max-h-[calc(100vh-2rem)] flex flex-col">
+      <div className="relative w-full max-w-lg bg-card shadow-2xl rounded-2xl border border-border/50 overflow-hidden animate-in zoom-in-95 fade-in duration-200 max-h-[calc(100vh-2rem)] flex flex-col">
         <button
           onClick={onClose}
           className="absolute right-5 top-5 z-10 p-2 rounded-full text-muted-foreground/40 hover:bg-muted/50 hover:text-foreground transition-all"
@@ -131,43 +132,43 @@ export function IntegrationDialog({
         </button>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="p-7 sm:p-10 flex flex-col items-center text-center space-y-7">
-            <div className="space-y-3">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-                <Plug2 className="h-6 w-6" />
+          <div className="p-6 sm:p-8 flex flex-col space-y-6">
+            <div className="flex items-center gap-4 text-left">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                <Plug2 className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <h2 className="text-xl font-bold tracking-tight text-foreground/90">
+              <div className="space-y-0.5">
+                <h2 className="text-[17px] font-bold tracking-tight text-foreground/90 leading-tight">
                   {isEditMode ? "Integration Settings" : "Add Integration"}
                 </h2>
-                <p className="text-[12px] text-muted-foreground/60 font-bold tracking-tight">
-                  Securely connect your data sources or destinations
+                <p className="text-[10px] text-muted-foreground/50 font-bold tracking-widest uppercase">
+                  Securely connect your data sources
                 </p>
               </div>
             </div>
 
             <form
               onSubmit={handleSubmit}
-              className="w-full text-left space-y-8"
+              className="w-full text-left space-y-6"
             >
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-foreground/80 px-1 tracking-tight">
+                    <label className="text-[10px] font-bold text-muted-foreground/60 px-1 tracking-widest uppercase">
                       Integration Name
                     </label>
-                    <input
+                    <Input
                       autoFocus
-                      className="w-full bg-muted/10 border border-border/60 rounded-2xl px-4 py-3 text-sm focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/10 outline-none transition-all placeholder:text-muted-foreground/30 font-medium"
                       placeholder="e.g. Production DB"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       required
+                      className="font-medium"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[11px] font-bold text-foreground/80 px-1 tracking-tight">
+                    <label className="text-[10px] font-bold text-muted-foreground/60 px-1 tracking-widest uppercase">
                       Adapter Type
                     </label>
                     <Select
@@ -175,15 +176,15 @@ export function IntegrationDialog({
                       onValueChange={setAdapterType}
                       disabled={isEditMode}
                     >
-                      <SelectTrigger className="h-[46px] bg-muted/10 border border-border/60 rounded-xl px-4 focus:border-primary/40 focus:bg-background focus:ring-4 focus:ring-primary/5 outline-none transition-all font-medium text-sm">
+                      <SelectTrigger className="h-9 font-medium text-sm">
                         <SelectValue placeholder="Select type" />
                       </SelectTrigger>
-                      <SelectContent className="rounded-xl border-border/40 shadow-xl bg-card">
+                      <SelectContent className="rounded-lg border-border/40 shadow-xl bg-card">
                         {adapters?.map((adapter) => (
                           <SelectItem
                             key={adapter.type}
                             value={adapter.type}
-                            className="rounded-lg mx-1 my-0.5"
+                            className="mx-1 my-0.5 font-medium"
                           >
                             {adapter.name}
                           </SelectItem>
@@ -194,38 +195,37 @@ export function IntegrationDialog({
                 </div>
 
                 {selectedAdapter && selectedAdapter.vault_fields.length > 0 && (
-                  <div className="space-y-6 pt-2">
-                    <div className="flex items-center gap-3 px-1 text-primary/70">
-                      <Shield className="h-3.5 w-3.5" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center gap-3 px-1 text-primary/60">
+                      <Shield className="h-3 w-3" />
+                      <span className="text-[9px] font-bold uppercase tracking-[0.15em]">
                         Credentials
                       </span>
                       <div className="h-px bg-border/20 flex-1" />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-5">
+                    <div className="grid grid-cols-1 gap-4">
                       {selectedAdapter.vault_fields.map((spec) => {
                         const field = parseFieldSpec(spec);
                         return (
                           <div key={field.name} className="space-y-2">
-                            <label className="text-[11px] font-bold text-foreground/70 px-1 flex items-center justify-between tracking-tight">
-                              <span className="capitalize">
+                            <label className="text-[10px] font-bold text-muted-foreground/60 px-1 flex items-center justify-between tracking-widest uppercase">
+                              <span className="capitalize tracking-normal">
                                 {field.name.replace(/_/g, " ")}
                               </span>
                               {field.isSecret && (
-                                <span className="text-[9px] font-bold uppercase text-emerald-600/70 tracking-wider">
+                                <span className="text-[8px] font-bold uppercase text-emerald-600/60 tracking-wider">
                                   Encrypted
                                 </span>
                               )}
                             </label>
                             <div className="relative group">
-                              <input
+                              <Input
                                 type={
                                   field.type === "password"
                                     ? "password"
                                     : "text"
                                 }
-                                className="w-full bg-muted/10 border border-border/60 rounded-xl px-4 py-3 text-sm focus:border-primary/40 focus:bg-background focus:ring-4 focus:ring-primary/5 outline-none transition-all placeholder:text-muted-foreground/30 font-medium tabular-nums"
                                 placeholder={
                                   field.isSecret
                                     ? "Vault secret reference"
@@ -233,6 +233,10 @@ export function IntegrationDialog({
                                       ? String(field.defaultValue)
                                       : `Enter ${field.name}`
                                 }
+                                className={cn(
+                                  "font-mono text-[13px] tracking-tight",
+                                  field.isSecret ? "pr-10" : ""
+                                )}
                                 value={configValues[field.name] || ""}
                                 onChange={(e) =>
                                   setConfigValues((prev) => ({
@@ -246,8 +250,8 @@ export function IntegrationDialog({
                                 required
                               />
                               {field.isSecret && (
-                                <div className="absolute right-5 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none text-muted-foreground/30 group-focus-within:text-primary/40 transition-colors">
-                                  <Lock className="h-4 w-4" />
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center h-8 w-8 text-muted-foreground/20 group-focus-within:text-primary/40 transition-colors">
+                                  <Lock className="h-3.5 w-3.5" />
                                 </div>
                               )}
                             </div>
@@ -259,26 +263,26 @@ export function IntegrationDialog({
                 )}
               </div>
 
-              <div className="flex flex-col gap-3 pt-4">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="h-12 w-full rounded-xl text-[14px] font-bold shadow-lg shadow-primary/5 hover:scale-[1.01] active:scale-[0.99] transition-all"
-                  disabled={isSaving || !name.trim()}
-                >
-                  {isSaving
-                    ? "Configuring..."
-                    : isEditMode
-                      ? "Save Changes"
-                      : "Create Integration"}
-                </Button>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/20">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={onClose}
-                  className="h-10 w-full rounded-xl text-[12px] font-bold text-muted-foreground/40 hover:text-foreground transition-all"
+                  className="h-9 px-4 text-[12px] font-bold text-muted-foreground/60 hover:text-foreground"
                 >
                   Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="h-9 px-6 text-[12px] font-bold shadow-lg shadow-primary/10"
+                  disabled={isSaving || !name.trim()}
+                >
+                  {isSaving
+                    ? "Saving..."
+                    : isEditMode
+                      ? "Update"
+                      : "Create"}
                 </Button>
               </div>
             </form>
