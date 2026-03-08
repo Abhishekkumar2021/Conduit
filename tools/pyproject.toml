@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conduit-dev-tools"
+version = "0.1.0"
+description = "Conduit developer CLI — cross-platform dev tooling"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.14",
+    "rich>=13.9",
+]
+
+[project.scripts]
+conduit-dev = "cli:app"

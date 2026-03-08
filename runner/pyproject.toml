@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conduit-runner"
+version = "0.1.0"
+description = "Conduit Runner — data plane execution agent"
+requires-python = ">=3.11"
+dependencies = [
+    "conduit-domain",
+    "conduit-engine",
+    "typer>=0.14",
+    "httpx>=0.28",
+    "cryptography>=44.0",
+    "structlog>=24.4",
+]
+
+[project.scripts]
+conduit = "conduit.runner.cli:app"
+cdt = "conduit.runner.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

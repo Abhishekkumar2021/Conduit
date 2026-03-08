@@ -1,0 +1,1 @@
+"""Conduit Domain — Entity definitions."""

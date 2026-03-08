@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conduit-engine"
+version = "0.1.0"
+description = "Conduit execution engine — adapters, transforms, DAG planner, executor"
+requires-python = ">=3.11"
+dependencies = [
+    "conduit-domain",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "anyio>=4.0",
+    "ruff>=0.8",
+]
+# Adapter-specific extras
+postgresql = ["psycopg2-binary>=2.9"]
+mysql = ["pymysql>=1.1"]
+mongodb = ["pymongo>=4.8"]
+s3 = ["boto3>=1.35"]
+all = [
+    "psycopg2-binary>=2.9",
+    "pymysql>=1.1",
+    "pymongo>=4.8",
+    "boto3>=1.35",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"

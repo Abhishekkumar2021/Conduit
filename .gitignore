@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+packages/domain/.venv/
+packages/engine/.venv/
+server/.venv/
+runner/.venv/
+tools/.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / Frontend
+console/node_modules/
+console/dist/
+console/.vite/
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+.synqx/
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Conduit runtime
+~/.conduit/
+
+# Ignored folder
+.context/
