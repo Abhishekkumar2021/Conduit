@@ -541,6 +541,61 @@ async def test_run_service_get_runs(db_session):
 
 
 @pytest.mark.asyncio
+async def test_run_service_get_workspace_runs_with_filters(db_session):
+    user = await _create_user(db_session, "run_filters@test.com")
+    ws = await _create_workspace(db_session, user.id, "RF WS", "rf-ws")
+
+    p_repo = PipelineRepository(db_session)
+    orders_pipe = await p_repo.create({"workspace_id": ws.id, "name": "Orders ETL"})
+    contacts_pipe = await p_repo.create(
+        {"workspace_id": ws.id, "name": "Contacts Sync"}
+    )
+    r_repo = RevisionRepository(db_session)
+    orders_rev = await r_repo.create({"pipeline_id": orders_pipe.id, "number": 1})
+    contacts_rev = await r_repo.create({"pipeline_id": contacts_pipe.id, "number": 1})
+
+    svc = _make_run_service(db_session)
+    manual_run = await svc.initialize_run(
+        workspace_id=ws.id,
+        pipeline_id=orders_pipe.id,
+        revision_id=orders_rev.id,
+        trigger_type="manual",
+    )
+    failed_run = await svc.initialize_run(
+        workspace_id=ws.id,
+        pipeline_id=contacts_pipe.id,
+        revision_id=contacts_rev.id,
+        trigger_type="schedule",
+    )
+    await svc.update_run_status(failed_run.id, "failed", error_message="boom")
+
+    api_run = await svc.initialize_run(
+        workspace_id=ws.id,
+        pipeline_id=orders_pipe.id,
+        revision_id=orders_rev.id,
+        trigger_type="api",
+    )
+    await svc.update_run_status(api_run.id, "succeeded", duration_ms=321)
+
+    failed_only = await svc.get_workspace_runs(ws.id, status="failed")
+    assert [r.id for r in failed_only] == [failed_run.id]
+
+    manual_only = await svc.get_workspace_runs(ws.id, trigger_type="manual")
+    assert [r.id for r in manual_only] == [manual_run.id]
+
+    orders_only = await svc.get_workspace_runs(ws.id, search="orders")
+    assert {r.id for r in orders_only} == {manual_run.id, api_run.id}
+
+    combined = await svc.get_workspace_runs(
+        ws.id,
+        status="succeeded",
+        trigger_type="api",
+        search=str(api_run.id)[:8],
+    )
+    assert [r.id for r in combined] == [api_run.id]
+
+
+@pytest.mark.asyncio
 async def test_run_service_update_status(db_session):
     user = await _create_user(db_session, "run_upd@test.com")
     ws = await _create_workspace(db_session, user.id, "RU WS", "ru-ws")

@@ -49,10 +49,21 @@ class RunService:
         return run
 
     async def get_workspace_runs(
-        self, workspace_id: UUID, limit: int = 50
+        self,
+        workspace_id: UUID,
+        limit: int = 50,
+        status: str | None = None,
+        trigger_type: str | None = None,
+        search: str | None = None,
     ) -> Sequence[Run]:
         """List recent runs in a workspace."""
-        return await self.run_repo.get_by_workspace(workspace_id, limit)
+        return await self.run_repo.get_by_workspace(
+            workspace_id=workspace_id,
+            limit=limit,
+            status=status,
+            trigger_type=trigger_type,
+            search=search,
+        )
 
     async def log_step(
         self,
@@ -79,6 +90,14 @@ class RunService:
     ) -> Sequence[Run]:
         """List recent runs for a specific pipeline."""
         return await self.run_repo.get_by_pipeline(pipeline_id, limit)
+
+    async def get_run_with_steps(self, run_id: UUID) -> tuple[Run, Sequence[Step]] | None:
+        """Fetch one run and its step execution history."""
+        run = await self.run_repo.get(run_id)
+        if not run:
+            return None
+        steps = await self.step_repo.get_by_run(run_id)
+        return run, steps
 
     async def claim_pending_run(self) -> dict | None:
         """Find the oldest pending run, mark as running, and return full details."""

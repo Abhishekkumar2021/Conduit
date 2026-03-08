@@ -11,7 +11,10 @@ on:
       target_env:
         description: "Deployment target"
         required: true
-        type: string
+        type: choice
+        options:
+          - staging
+          - production
         default: "staging"
 
 permissions:
@@ -21,31 +24,84 @@ concurrency:
   group: cd-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-jobs:
-  validate-dispatch-input:
-    name: Validate Dispatch Input
-    runs-on: ubuntu-latest
-    steps:
-      - name: Skip validation for non-dispatch events
-        if: github.event_name != 'workflow_dispatch'
-        run: echo "Not a workflow_dispatch event; skipping input validation."
+defaults:
+  run:
+    shell: bash
 
-      - name: Validate target_env
-        if: github.event_name == 'workflow_dispatch'
+jobs:
+  resolve-deploy-config:
+    name: Resolve Deploy Config
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      staging_environment: ${{ steps.resolve.outputs.staging_environment }}
+      production_environment: ${{ steps.resolve.outputs.production_environment }}
+      healthcheck_timeout_seconds: ${{ steps.resolve.outputs.healthcheck_timeout_seconds }}
+      healthcheck_interval_seconds: ${{ steps.resolve.outputs.healthcheck_interval_seconds }}
+    steps:
+      - name: Resolve and validate configuration
+        id: resolve
+        env:
+          STAGING_ENVIRONMENT: ${{ vars.STAGING_ENVIRONMENT }}
+          PRODUCTION_ENVIRONMENT: ${{ vars.PRODUCTION_ENVIRONMENT }}
+          DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS: ${{ vars.DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS }}
+          DEPLOY_HEALTHCHECK_INTERVAL_SECONDS: ${{ vars.DEPLOY_HEALTHCHECK_INTERVAL_SECONDS }}
         run: |
-          case "${{ github.event.inputs.target_env }}" in
-            staging|production) ;;
-            *)
-              echo "Invalid target_env='${{ github.event.inputs.target_env }}'. Use 'staging' or 'production'."
-              exit 1
-              ;;
-          esac
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            case "${{ github.event.inputs.target_env }}" in
+              staging|production) ;;
+              *)
+                echo "Invalid target_env='${{ github.event.inputs.target_env }}'. Use 'staging' or 'production'."
+                exit 1
+                ;;
+            esac
+          fi
+
+          staging_env="${STAGING_ENVIRONMENT:-staging}"
+          production_env="${PRODUCTION_ENVIRONMENT:-production}"
+
+          if [[ -z "${staging_env}" || -z "${production_env}" ]]; then
+            echo "Deployment environment names must not be empty."
+            exit 1
+          fi
+          if [[ "${staging_env}" == "${production_env}" ]]; then
+            echo "STAGING_ENVIRONMENT and PRODUCTION_ENVIRONMENT must be different."
+            exit 1
+          fi
+
+          timeout="${DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS:-300}"
+          interval="${DEPLOY_HEALTHCHECK_INTERVAL_SECONDS:-10}"
+
+          if ! [[ "${timeout}" =~ ^[0-9]+$ ]] || ! [[ "${interval}" =~ ^[0-9]+$ ]]; then
+            echo "Healthcheck timeout/interval must be integers."
+            exit 1
+          fi
+          if (( timeout < 30 )); then
+            echo "Healthcheck timeout must be >= 30 seconds."
+            exit 1
+          fi
+          if (( interval < 1 )); then
+            echo "Healthcheck interval must be >= 1 second."
+            exit 1
+          fi
+          if (( interval >= timeout )); then
+            echo "Healthcheck interval must be lower than timeout."
+            exit 1
+          fi
+
+          echo "staging_environment=${staging_env}" >> "${GITHUB_OUTPUT}"
+          echo "production_environment=${production_env}" >> "${GITHUB_OUTPUT}"
+          echo "healthcheck_timeout_seconds=${timeout}" >> "${GITHUB_OUTPUT}"
+          echo "healthcheck_interval_seconds=${interval}" >> "${GITHUB_OUTPUT}"
 
   verify-python:
     name: Verify Python Packages
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs:
-      - validate-dispatch-input
+      - resolve-deploy-config
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,8 +147,9 @@ jobs:
   verify-server:
     name: Verify Server
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs:
-      - validate-dispatch-input
+      - resolve-deploy-config
     services:
       postgres:
         image: postgres:17-alpine
@@ -154,8 +211,9 @@ jobs:
   verify-console:
     name: Verify Console
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs:
-      - validate-dispatch-input
+      - resolve-deploy-config
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -186,6 +244,7 @@ jobs:
   build-artifacts:
     name: Build Release Artifacts
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs:
       - verify-python
       - verify-server
@@ -242,6 +301,7 @@ jobs:
     name: Create GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs:
       - build-artifacts
     permissions:
@@ -268,12 +328,17 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'staging')
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs:
+      - resolve-deploy-config
       - build-artifacts
     environment:
-      name: ${{ vars.STAGING_ENVIRONMENT || 'staging' }}
+      name: ${{ needs.resolve-deploy-config.outputs.staging_environment }}
     env:
       DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+      DEPLOY_HEALTHCHECK_URL: ${{ secrets.DEPLOY_HEALTHCHECK_URL }}
+      DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS: ${{ needs.resolve-deploy-config.outputs.healthcheck_timeout_seconds }}
+      DEPLOY_HEALTHCHECK_INTERVAL_SECONDS: ${{ needs.resolve-deploy-config.outputs.healthcheck_interval_seconds }}
     concurrency:
       group: deploy-staging
       cancel-in-progress: false
@@ -293,24 +358,53 @@ jobs:
 
       - name: Trigger staging deployment webhook
         run: |
-          curl -fsS -X POST "${DEPLOY_WEBHOOK_URL}" \
+          http_code=$(curl -sS -o /tmp/deploy_response.txt -w "%{http_code}" -X POST "${DEPLOY_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
-            -d "{\"sha\":\"${GITHUB_SHA}\",\"environment\":\"staging\"}"
+            -d "{\"sha\":\"${GITHUB_SHA}\",\"environment\":\"staging\"}")
+          if [[ "${http_code}" -lt 200 || "${http_code}" -ge 300 ]]; then
+            echo "Staging deploy webhook failed with HTTP ${http_code}"
+            cat /tmp/deploy_response.txt || true
+            exit 1
+          fi
+
+      - name: Verify staging deployment health (optional)
+        run: |
+          if [[ -z "${DEPLOY_HEALTHCHECK_URL}" ]]; then
+            echo "DEPLOY_HEALTHCHECK_URL not set for staging; skipping health verification."
+            exit 0
+          fi
+
+          deadline=$(( $(date +%s) + DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS ))
+          while [[ $(date +%s) -lt ${deadline} ]]; do
+            if curl -fsS "${DEPLOY_HEALTHCHECK_URL}" >/dev/null; then
+              echo "Staging healthcheck passed."
+              exit 0
+            fi
+            sleep "${DEPLOY_HEALTHCHECK_INTERVAL_SECONDS}"
+          done
+
+          echo "Staging healthcheck timed out after ${DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS}s."
+          exit 1
 
   deploy-production-tag:
     name: Deploy Production (Tag)
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs:
+      - resolve-deploy-config
       - build-artifacts
       - release
     permissions:
       contents: read
       id-token: write
     environment:
-      name: ${{ vars.PRODUCTION_ENVIRONMENT || 'production' }}
+      name: ${{ needs.resolve-deploy-config.outputs.production_environment }}
     env:
       DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+      DEPLOY_HEALTHCHECK_URL: ${{ secrets.DEPLOY_HEALTHCHECK_URL }}
+      DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS: ${{ needs.resolve-deploy-config.outputs.healthcheck_timeout_seconds }}
+      DEPLOY_HEALTHCHECK_INTERVAL_SECONDS: ${{ needs.resolve-deploy-config.outputs.healthcheck_interval_seconds }}
     concurrency:
       group: deploy-production
       cancel-in-progress: false
@@ -327,26 +421,54 @@ jobs:
             echo "Missing DEPLOY_WEBHOOK_URL secret in production environment"
             exit 1
           fi
+          if [ -z "${DEPLOY_HEALTHCHECK_URL}" ]; then
+            echo "Missing DEPLOY_HEALTHCHECK_URL secret in production environment"
+            exit 1
+          fi
 
       - name: Trigger production deployment webhook
         run: |
-          curl -fsS -X POST "${DEPLOY_WEBHOOK_URL}" \
+          http_code=$(curl -sS -o /tmp/deploy_response.txt -w "%{http_code}" -X POST "${DEPLOY_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
-            -d "{\"sha\":\"${GITHUB_SHA}\",\"environment\":\"production\"}"
+            -d "{\"sha\":\"${GITHUB_SHA}\",\"environment\":\"production\"}")
+          if [[ "${http_code}" -lt 200 || "${http_code}" -ge 300 ]]; then
+            echo "Production deploy webhook failed with HTTP ${http_code}"
+            cat /tmp/deploy_response.txt || true
+            exit 1
+          fi
+
+      - name: Verify production deployment health
+        run: |
+          deadline=$(( $(date +%s) + DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS ))
+          while [[ $(date +%s) -lt ${deadline} ]]; do
+            if curl -fsS "${DEPLOY_HEALTHCHECK_URL}" >/dev/null; then
+              echo "Production healthcheck passed."
+              exit 0
+            fi
+            sleep "${DEPLOY_HEALTHCHECK_INTERVAL_SECONDS}"
+          done
+
+          echo "Production healthcheck timed out after ${DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS}s."
+          exit 1
 
   deploy-production-manual:
     name: Deploy Production (Manual)
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.target_env == 'production'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs:
+      - resolve-deploy-config
       - build-artifacts
     permissions:
       contents: read
       id-token: write
     environment:
-      name: ${{ vars.PRODUCTION_ENVIRONMENT || 'production' }}
+      name: ${{ needs.resolve-deploy-config.outputs.production_environment }}
     env:
       DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+      DEPLOY_HEALTHCHECK_URL: ${{ secrets.DEPLOY_HEALTHCHECK_URL }}
+      DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS: ${{ needs.resolve-deploy-config.outputs.healthcheck_timeout_seconds }}
+      DEPLOY_HEALTHCHECK_INTERVAL_SECONDS: ${{ needs.resolve-deploy-config.outputs.healthcheck_interval_seconds }}
     concurrency:
       group: deploy-production
       cancel-in-progress: false
@@ -363,9 +485,32 @@ jobs:
             echo "Missing DEPLOY_WEBHOOK_URL secret in production environment"
             exit 1
           fi
+          if [ -z "${DEPLOY_HEALTHCHECK_URL}" ]; then
+            echo "Missing DEPLOY_HEALTHCHECK_URL secret in production environment"
+            exit 1
+          fi
 
       - name: Trigger production deployment webhook
         run: |
-          curl -fsS -X POST "${DEPLOY_WEBHOOK_URL}" \
+          http_code=$(curl -sS -o /tmp/deploy_response.txt -w "%{http_code}" -X POST "${DEPLOY_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
-            -d "{\"sha\":\"${GITHUB_SHA}\",\"environment\":\"production\"}"
+            -d "{\"sha\":\"${GITHUB_SHA}\",\"environment\":\"production\"}")
+          if [[ "${http_code}" -lt 200 || "${http_code}" -ge 300 ]]; then
+            echo "Production deploy webhook failed with HTTP ${http_code}"
+            cat /tmp/deploy_response.txt || true
+            exit 1
+          fi
+
+      - name: Verify production deployment health
+        run: |
+          deadline=$(( $(date +%s) + DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS ))
+          while [[ $(date +%s) -lt ${deadline} ]]; do
+            if curl -fsS "${DEPLOY_HEALTHCHECK_URL}" >/dev/null; then
+              echo "Production healthcheck passed."
+              exit 0
+            fi
+            sleep "${DEPLOY_HEALTHCHECK_INTERVAL_SECONDS}"
+          done
+
+          echo "Production healthcheck timed out after ${DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS}s."
+          exit 1

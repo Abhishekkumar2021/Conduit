@@ -33,6 +33,8 @@ def start(
     import logging
 
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     daemon = RunnerDaemon(api_url=api_url)
     daemon.start()

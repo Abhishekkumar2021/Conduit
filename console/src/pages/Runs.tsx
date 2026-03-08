@@ -2,31 +2,69 @@ import {
   CheckCircle2,
   AlertTriangle,
   Activity,
-  Filter,
   Search,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Table } from "@/components/ui/Table";
 import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 import { RUN_STATUS } from "@/lib/constants";
+import { useEffect, useMemo, useState } from "react";
 
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
 import { useRuns } from "@/hooks/queries/useRuns";
 import { usePipelines } from "@/hooks/queries/usePipelines";
+import type { Run } from "@/types/api";
+
+type RunStatusFilter = "" | Run["status"];
+type RunTriggerFilter = "" | Run["trigger_type"];
 
 /* ─── Page ────────────────────────────────────────────────────── */
 
 export function Runs() {
   const { data: workspaces } = useWorkspaces();
   const workspaceId = workspaces?.[0]?.id ?? "";
+  const navigate = useNavigate();
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<RunStatusFilter>("");
+  const [triggerFilter, setTriggerFilter] = useState<RunTriggerFilter>("");
 
-  const { data: runs, isLoading: isRunsLoading } = useRuns(workspaceId);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+    }, 300);
+    return () => window.clearTimeout(timeout);
+  }, [searchInput]);
+
+  const runFilters = useMemo(
+    () => ({
+      limit: 50,
+      status: statusFilter || undefined,
+      trigger_type: triggerFilter || undefined,
+      search: search || undefined,
+    }),
+    [search, statusFilter, triggerFilter],
+  );
+
+  const { data: runs, isLoading: isRunsLoading } = useRuns(
+    workspaceId,
+    runFilters,
+  );
   const { data: pipelines } = usePipelines(workspaceId);
 
   const pipelineMap = new Map(pipelines?.map((p) => [p.id, p]));
   const safeRuns = runs || [];
+  const hasActiveFilters = Boolean(searchInput.trim() || statusFilter || triggerFilter);
 
   return (
     <div className="fade-in p-4 sm:p-6 lg:p-8">
@@ -42,13 +80,64 @@ export function Runs() {
           <input
             id="runs-search"
             type="text"
-            placeholder="Search pipelines..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by pipeline or run id..."
             className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-3 text-[13px] text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-ring"
           />
         </div>
-        <Button variant="secondary" size="sm">
-          <Filter className="h-3.5 w-3.5" />
-          Filter
+        <Select
+          value={statusFilter || "all"}
+          onValueChange={(value) =>
+            setStatusFilter(value === "all" ? "" : (value as RunStatusFilter))
+          }
+        >
+          <SelectTrigger
+            id="runs-status"
+            className="h-8 w-full sm:w-[150px] bg-background px-2 text-[12px]"
+          >
+            <SelectValue placeholder="All status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All status</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="running">Running</SelectItem>
+            <SelectItem value="succeeded">Succeeded</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={triggerFilter || "all"}
+          onValueChange={(value) =>
+            setTriggerFilter(value === "all" ? "" : (value as RunTriggerFilter))
+          }
+        >
+          <SelectTrigger
+            id="runs-trigger"
+            className="h-8 w-full sm:w-[150px] bg-background px-2 text-[12px]"
+          >
+            <SelectValue placeholder="All trigger" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All trigger</SelectItem>
+            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="schedule">Schedule</SelectItem>
+            <SelectItem value="api">API</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            setSearchInput("");
+            setSearch("");
+            setStatusFilter("");
+            setTriggerFilter("");
+          }}
+          disabled={!hasActiveFilters}
+        >
+          Clear
         </Button>
       </div>
 
@@ -91,7 +180,9 @@ export function Runs() {
           </div>
         ) : safeRuns.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/50 p-8 text-center text-muted-foreground max-w-[1200px]">
-            No runs found for this workspace.
+            {hasActiveFilters
+              ? "No runs match the current filters."
+              : "No runs found for this workspace."}
           </div>
         ) : (
           <div className="max-w-[1200px] overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
@@ -116,6 +207,7 @@ export function Runs() {
                   <tr
                     key={run.id}
                     className="cursor-pointer transition-colors hover:bg-muted/50"
+                    onClick={() => navigate(`/runs/${run.id}`)}
                   >
                     <td className="px-4 py-3 text-[13px] font-medium tabular-nums text-foreground">
                       #{run.id.slice(0, 8)}
@@ -144,7 +236,9 @@ export function Runs() {
                       {run.trigger_type}
                     </td>
                     <td className="px-4 py-3 text-[11px] text-muted-foreground">
-                      {new Date(run.started_at || "").toLocaleString()}
+                      {run.started_at
+                        ? new Date(run.started_at).toLocaleString()
+                        : "—"}
                     </td>
                   </tr>
                 );

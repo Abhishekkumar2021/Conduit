@@ -1,5 +1,6 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
+from datetime import datetime, timedelta, timezone
 
 from app.infra.database.session import get_db_session
 from app.main import app
@@ -201,6 +202,186 @@ async def test_run_endpoints(db_session):
         )
         assert resp.status_code == 200
         assert resp.json()["status"] == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_run_detail_endpoint_returns_steps(db_session):
+    import uuid
+
+    from app.infra.database.repositories.user import UserRepository
+    from app.infra.database.repositories.workspace import WorkspaceRepository
+    from app.infra.database.repositories.pipeline import (
+        PipelineRepository,
+        RevisionRepository,
+    )
+    from app.infra.database.repositories.run import RunRepository, StepRepository
+
+    user = await UserRepository(db_session).create(
+        {"email": "run_detail_api@test.com", "display_name": "API User"}
+    )
+    ws = await WorkspaceRepository(db_session).create(
+        {"name": "Run Detail WS", "slug": "run-detail-ws", "created_by": user.id}
+    )
+    pipe = await PipelineRepository(db_session).create(
+        {"workspace_id": ws.id, "name": "Run Detail Pipe"}
+    )
+    rev = await RevisionRepository(db_session).create({"pipeline_id": pipe.id, "number": 1})
+
+    run = await RunRepository(db_session).create(
+        {
+            "workspace_id": ws.id,
+            "pipeline_id": pipe.id,
+            "revision_id": rev.id,
+            "status": "failed",
+            "trigger_type": "manual",
+            "error_message": "stage failed",
+        }
+    )
+
+    step_repo = StepRepository(db_session)
+    base_time = datetime.now(timezone.utc)
+    await step_repo.create(
+        {
+            "run_id": run.id,
+            "stage_key": "extract_1",
+            "stage_kind": "extract",
+            "status": "succeeded",
+            "records_in": 10,
+            "records_out": 10,
+            "started_at": base_time,
+            "finished_at": base_time + timedelta(seconds=1),
+            "duration_ms": 1000,
+        }
+    )
+    await step_repo.create(
+        {
+            "run_id": run.id,
+            "stage_key": "load_1",
+            "stage_kind": "load",
+            "status": "failed",
+            "records_in": 10,
+            "records_out": 0,
+            "records_failed": 10,
+            "started_at": base_time + timedelta(seconds=2),
+            "finished_at": base_time + timedelta(seconds=3),
+            "duration_ms": 1000,
+            "error_message": "target unavailable",
+        }
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.get(f"/api/v1/runs/{run.id}")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["id"] == str(run.id)
+        assert payload["status"] == "failed"
+        assert payload["error_message"] == "stage failed"
+        assert [s["stage_key"] for s in payload["steps"]] == ["extract_1", "load_1"]
+        assert payload["steps"][1]["error_message"] == "target unavailable"
+
+        resp = await ac.get(f"/api/v1/runs/{uuid.uuid4()}")
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Run not found"
+
+
+@pytest.mark.asyncio
+async def test_workspace_run_filters_endpoint(db_session):
+    from app.infra.database.repositories.user import UserRepository
+    from app.infra.database.repositories.workspace import WorkspaceRepository
+    from app.infra.database.repositories.pipeline import (
+        PipelineRepository,
+        RevisionRepository,
+    )
+    from app.infra.database.repositories.run import RunRepository
+
+    user = await UserRepository(db_session).create(
+        {"email": "run_filters_api@test.com", "display_name": "API User"}
+    )
+    ws = await WorkspaceRepository(db_session).create(
+        {"name": "Run Filter WS", "slug": "run-filter-ws", "created_by": user.id}
+    )
+
+    p_repo = PipelineRepository(db_session)
+    orders_pipe = await p_repo.create({"workspace_id": ws.id, "name": "Orders ETL"})
+    billing_pipe = await p_repo.create({"workspace_id": ws.id, "name": "Billing Sync"})
+    r_repo = RevisionRepository(db_session)
+    orders_rev = await r_repo.create({"pipeline_id": orders_pipe.id, "number": 1})
+    billing_rev = await r_repo.create({"pipeline_id": billing_pipe.id, "number": 1})
+
+    run_repo = RunRepository(db_session)
+    pending_manual = await run_repo.create(
+        {
+            "workspace_id": ws.id,
+            "pipeline_id": orders_pipe.id,
+            "revision_id": orders_rev.id,
+            "status": "pending",
+            "trigger_type": "manual",
+        }
+    )
+    failed_schedule = await run_repo.create(
+        {
+            "workspace_id": ws.id,
+            "pipeline_id": billing_pipe.id,
+            "revision_id": billing_rev.id,
+            "status": "failed",
+            "trigger_type": "schedule",
+        }
+    )
+    succeeded_api = await run_repo.create(
+        {
+            "workspace_id": ws.id,
+            "pipeline_id": orders_pipe.id,
+            "revision_id": orders_rev.id,
+            "status": "succeeded",
+            "trigger_type": "api",
+        }
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.get(f"/api/v1/workspaces/{ws.id}/runs?status=failed")
+        assert resp.status_code == 200
+        assert [r["id"] for r in resp.json()] == [str(failed_schedule.id)]
+
+        resp = await ac.get(f"/api/v1/workspaces/{ws.id}/runs?trigger_type=manual")
+        assert resp.status_code == 200
+        assert [r["id"] for r in resp.json()] == [str(pending_manual.id)]
+
+        resp = await ac.get(f"/api/v1/workspaces/{ws.id}/runs?search=orders")
+        assert resp.status_code == 200
+        assert {r["id"] for r in resp.json()} == {
+            str(pending_manual.id),
+            str(succeeded_api.id),
+        }
+
+        resp = await ac.get(
+            f"/api/v1/workspaces/{ws.id}/runs"
+            f"?status=succeeded&trigger_type=api&search={str(succeeded_api.id)[:8]}"
+        )
+        assert resp.status_code == 200
+        assert [r["id"] for r in resp.json()] == [str(succeeded_api.id)]
+
+
+@pytest.mark.asyncio
+async def test_run_endpoints_reject_invalid_status_values():
+    import uuid
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.get(
+            f"/api/v1/workspaces/{uuid.uuid4()}/runs?status=not-a-status"
+        )
+        assert resp.status_code == 422
+
+        resp = await ac.patch(
+            f"/api/v1/runs/{uuid.uuid4()}/status",
+            json={"status": "not-a-status"},
+        )
+        assert resp.status_code == 422
 
 
 @pytest.mark.asyncio

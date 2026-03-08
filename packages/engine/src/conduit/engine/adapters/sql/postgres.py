@@ -9,7 +9,7 @@ from typing import Any, Generator
 
 # We use psycopg2 directly or sqlalchemy engine. Assuming sqlalchemy is available for sync.
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, URL
 
 from conduit.engine.adapters.base import BaseAdapter, adapter
 
@@ -40,31 +40,73 @@ class PostgresAdapter(BaseAdapter):
         super().__init__(config)
         self.engine: Engine | None = None
 
+    @staticmethod
+    def _first_config_value(
+        config: dict[str, Any], keys: list[str], default: Any = None
+    ) -> Any:
+        for key in keys:
+            value = config.get(key)
+            if value is None:
+                continue
+            if isinstance(value, str) and not value.strip():
+                continue
+            return value
+        return default
+
     def connect(self) -> None:
         if self._connected:
             return
 
-        host = self._config.get("host", "localhost")
-        port = self._config.get("port", 5432)
-        database = self._config.get("database", "")
-        username = self._config.get("username", "")
-        password = self._config.get("password", "")
+        connection_url = self._first_config_value(
+            self._config,
+            ["url", "database_url", "dsn", "connection_uri", "connection_url"],
+        )
 
-        # Postgresql adapter requires database and username
-        if not database or not username:
-            raise ValueError(
-                "PostgreSQL adapter requires 'database' and 'username' in config."
+        if connection_url:
+            connect_target: str | URL = str(connection_url)
+        else:
+            host = self._first_config_value(self._config, ["host", "hostname"], "localhost")
+            port = self._first_config_value(self._config, ["port"], 5432)
+            database = self._first_config_value(
+                self._config, ["database", "dbname", "db"]
+            )
+            username = self._first_config_value(
+                self._config, ["username", "user", "user_name"]
+            )
+            password = self._first_config_value(
+                self._config, ["password", "pass", "pwd"], ""
             )
 
-        url = f"postgresql://{username}:{password}@{host}:{port}/{database}"
-        self.engine = create_engine(url)
+            # Postgresql adapter requires database and username unless URL is provided
+            if not database or not username:
+                raise ValueError(
+                    "PostgreSQL adapter requires database and username "
+                    "(accepted keys: database/dbname/db + username/user), "
+                    "or a full connection URL via url/database_url/dsn."
+                )
+
+            try:
+                port_value = int(port)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("PostgreSQL adapter port must be an integer.") from exc
+
+            connect_target = URL.create(
+                "postgresql",
+                username=str(username),
+                password=str(password) if password else None,
+                host=str(host),
+                port=port_value,
+                database=str(database),
+            )
+
+        self.engine = create_engine(connect_target)
 
         # Test connection eagerly so discovery doesn't fail lazily
         try:
             with self.engine.begin() as conn:
                 conn.execute(text("SELECT 1"))
             self._connected = True
-            logger.debug("Connected to PostgreSQL %s:%s/%s", host, port, database)
+            logger.debug("Connected to PostgreSQL successfully")
         except Exception as e:
             self.engine.dispose()
             self.engine = None

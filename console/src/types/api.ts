@@ -84,6 +84,34 @@ export interface Run {
   error_message?: string;
 }
 
+export interface RunStep {
+  id: string;
+  stage_key: string;
+  stage_kind: string;
+  status: "pending" | "running" | "succeeded" | "failed" | "skipped";
+  records_in: number;
+  records_out: number;
+  records_failed: number;
+  bytes_processed: number;
+  checkpoint?: Record<string, unknown> | null;
+  started_at?: string;
+  finished_at?: string;
+  duration_ms?: number;
+  error_message?: string;
+}
+
+export interface RunDetail {
+  id: string;
+  pipeline_id: string;
+  status: Run["status"];
+  trigger_type: Run["trigger_type"];
+  started_at?: string;
+  finished_at?: string;
+  duration_ms?: number;
+  error_message?: string;
+  steps: RunStep[];
+}
+
 export interface StageCreate {
   key: string;
   label: string;

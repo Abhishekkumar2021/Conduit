@@ -27,14 +27,22 @@ Control Plane (Server + Console)    Data Plane (Runner)
 # First-time setup
 conduit-dev setup
 
-# Start all services (server + runner + console)
-conduit-dev start
+# Start all services + local infra (detached)
+conduit-dev start --with-infra
 
 # Run tests
 conduit-dev test
 
 # Run server tests with dockerized Postgres
 conduit-dev test server --with-docker
+
+# Inspect service/infra state and logs
+conduit-dev status
+tail -f .runtime/logs/server.log .runtime/logs/console.log .runtime/logs/runner.log
+
+# Stop app services (and optionally infra)
+conduit-dev stop
+conduit-dev stop --with-infra
 ```
 
 ## Project Structure
@@ -72,9 +80,13 @@ Required GitHub configuration:
 - Optional repository variables (for custom env names):
   - `STAGING_ENVIRONMENT` (defaults to `staging`)
   - `PRODUCTION_ENVIRONMENT` (defaults to `production`)
+  - `DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS` (defaults to `300`)
+  - `DEPLOY_HEALTHCHECK_INTERVAL_SECONDS` (defaults to `10`)
 - Environment secrets:
   - `staging`: `DEPLOY_WEBHOOK_URL`
+  - `staging`: `DEPLOY_HEALTHCHECK_URL` (optional but recommended)
   - `production`: `DEPLOY_WEBHOOK_URL`
+  - `production`: `DEPLOY_HEALTHCHECK_URL` (required)
 
 ## License
 

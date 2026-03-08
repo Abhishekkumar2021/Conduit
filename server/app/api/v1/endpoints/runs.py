@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +24,31 @@ class RunResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StepResponse(BaseModel):
+    id: UUID
+    stage_key: str
+    stage_kind: str
+    status: str
+    records_in: int
+    records_out: int
+    records_failed: int
+    bytes_processed: int
+    checkpoint: dict[str, Any] | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_ms: int | None = None
+    error_message: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class RunDetailResponse(RunResponse):
+    error_message: str | None = None
+    steps: list[StepResponse]
+
+    model_config = {"from_attributes": True}
+
+
 @router.get(
     "/workspaces/{workspace_id}/runs",
     response_model=list[RunResponse],
@@ -31,9 +56,21 @@ class RunResponse(BaseModel):
 async def list_workspace_runs(
     workspace_id: UUID,
     limit: int = 50,
+    status: Literal[
+        "pending", "queued", "running", "succeeded", "failed", "cancelled"
+    ]
+    | None = None,
+    trigger_type: Literal["manual", "schedule", "api"] | None = None,
+    search: str | None = None,
     run_service: RunService = Depends(get_run_service),
 ):
-    return await run_service.get_workspace_runs(workspace_id, limit)
+    return await run_service.get_workspace_runs(
+        workspace_id=workspace_id,
+        limit=limit,
+        status=status,
+        trigger_type=trigger_type,
+        search=search,
+    )
 
 
 @router.get(
@@ -83,7 +120,7 @@ async def trigger_pipeline_run(
 
 
 class RunStatusUpdate(BaseModel):
-    status: str
+    status: Literal["running", "succeeded", "failed", "cancelled"]
     error_message: str | None = None
     duration_ms: int | None = None
 
@@ -122,6 +159,29 @@ async def claim_run(
     if not data:
         raise HTTPException(status_code=404, detail="No pending runs found")
     return data
+
+
+@router.get("/runs/{run_id}", response_model=RunDetailResponse)
+async def get_run_details(
+    run_id: UUID,
+    run_service: RunService = Depends(get_run_service),
+):
+    data = await run_service.get_run_with_steps(run_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    run, steps = data
+    return RunDetailResponse(
+        id=run.id,
+        status=run.status,
+        trigger_type=run.trigger_type,
+        pipeline_id=run.pipeline_id,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        duration_ms=run.duration_ms,
+        error_message=run.error_message,
+        steps=[StepResponse.model_validate(step) for step in steps],
+    )
 
 
 @router.patch("/runs/{run_id}/status", response_model=RunResponse)

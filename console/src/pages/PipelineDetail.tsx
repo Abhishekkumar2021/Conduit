@@ -258,14 +258,16 @@ export function PipelineDetail() {
                 </Badge>
               )}
               {isRunning && latestRun && (
-                <Badge
-                  variant="info"
-                  className="h-6 text-[11px] px-2.5 py-0 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-500 flex items-center gap-1.5 font-medium shadow-sm"
-                >
-                  <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2.5} />
-                  {RUN_STATUS[latestRun.status as keyof typeof RUN_STATUS]
-                    ?.label || latestRun.status}
-                </Badge>
+                <Link to={`/runs/${latestRun.id}`}>
+                  <Badge
+                    variant="info"
+                    className="h-6 text-[11px] px-2.5 py-0 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-500 flex items-center gap-1.5 font-medium shadow-sm hover:bg-blue-500/20 transition-colors"
+                  >
+                    <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2.5} />
+                    {RUN_STATUS[latestRun.status as keyof typeof RUN_STATUS]
+                      ?.label || latestRun.status}
+                  </Badge>
+                </Link>
               )}
             </div>
           </div>
@@ -381,6 +383,17 @@ export function PipelineDetail() {
                 />
                 Run Now
               </Button>
+              {latestRun && (
+                <Link to={`/runs/${latestRun.id}`}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 rounded-full px-3.5 text-xs bg-muted/50 hover:bg-muted border-border/50 transition-all font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Latest Run
+                  </Button>
+                </Link>
+              )}
             </>
           )}
         </div>

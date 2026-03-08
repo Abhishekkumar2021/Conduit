@@ -8,7 +8,15 @@ import logging
 from typing import Any, Generator
 
 # We use simple-salesforce per user requirement for robust API connection
-from simple_salesforce import Salesforce, SalesforceAuthenticationFailed  # type: ignore
+try:
+    from simple_salesforce import Salesforce, SalesforceAuthenticationFailed  # type: ignore
+except Exception:  # pragma: no cover - exercised in environments without the optional dep
+    Salesforce = None
+
+    class SalesforceAuthenticationFailed(Exception):
+        """Fallback auth exception when simple-salesforce is unavailable."""
+
+        pass
 
 from conduit.engine.adapters.base import BaseAdapter, adapter
 
@@ -38,11 +46,16 @@ class SalesforceAdapter(BaseAdapter):
 
     def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        self.sf: Salesforce | None = None
+        self.sf: Any | None = None
 
     def connect(self) -> None:
         if self._connected:
             return
+        if Salesforce is None:
+            raise ValueError(
+                "simple-salesforce is not installed. Install conduit-engine[salesforce] "
+                "to enable Salesforce integrations."
+            )
 
         domain = "login"
         instance_url = self._config.get("instance_url", "")

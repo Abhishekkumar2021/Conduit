@@ -23,6 +23,8 @@ class RunnerDaemon:
     ):
         self.api_url = api_url.rstrip("/")
         self.poll_interval = poll_interval
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
         self.client = httpx.Client(timeout=30.0)
 
     def start(self):
@@ -156,5 +158,7 @@ class RunnerDaemon:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     daemon = RunnerDaemon()
     daemon.start()
