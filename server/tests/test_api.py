@@ -310,15 +310,36 @@ async def test_create_integration_invalid_adapter_returns_400(db_session):
 async def test_salesforce_asset_discovery_endpoint_persists_collection_assets(
     db_session, monkeypatch
 ):
+    from types import SimpleNamespace
     from app.infra.database.repositories.user import UserRepository
     from app.infra.database.repositories.workspace import WorkspaceRepository
     from app.services.integration import IntegrationService
+    from conduit.engine.adapters.registry import AdapterRegistry
 
     user = await UserRepository(db_session).create(
         {"email": "sf_assets@test.com", "display_name": "API User"}
     )
     ws = await WorkspaceRepository(db_session).create(
         {"name": "SF Asset WS", "slug": "sf-asset-ws", "created_by": user.id}
+    )
+
+    original_get = AdapterRegistry.get
+    fake_vault_fields = ["instance_url", "username", "password:secret"]
+
+    class FakeSalesforceAdapterClass:
+        vault_fields = fake_vault_fields
+        meta = SimpleNamespace(type="salesforce", vault_fields=fake_vault_fields)
+
+    monkeypatch.setattr(
+        AdapterRegistry,
+        "get",
+        classmethod(
+            lambda cls, adapter_type: (
+                FakeSalesforceAdapterClass
+                if adapter_type == "salesforce"
+                else original_get(adapter_type)
+            )
+        ),
     )
 
     async def mock_sync_assets(self, integration_id):

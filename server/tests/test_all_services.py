@@ -380,8 +380,8 @@ async def test_integration_service_list(db_session):
     )
     await svc.register_integration(
         workspace_id=ws.id,
-        name="SF1",
-        adapter_type="salesforce",
+        name="SN1",
+        adapter_type="snowflake",
         config={},
     )
 
@@ -394,10 +394,32 @@ async def test_integration_service_sync_assets_salesforce_collection(
     db_session, monkeypatch
 ):
     from conduit.engine.adapters.registry import AdapterRegistry
+    from types import SimpleNamespace
 
     user = await _create_user(db_session, "int_sf_sync@test.com")
     ws = await _create_workspace(db_session, user.id, "SF Sync WS", "sf-sync-ws")
     svc = _make_integration_service(db_session)
+
+    original_get = AdapterRegistry.get
+    fake_vault_fields = ["instance_url", "username", "password:secret"]
+
+    class FakeSalesforceAdapterClass:
+        vault_fields = fake_vault_fields
+        meta = SimpleNamespace(type="salesforce", vault_fields=fake_vault_fields)
+
+    # In CI, salesforce adapter import may be unavailable if optional deps are not installed.
+    # Stub registry lookup to keep this test focused on server-side sync semantics.
+    monkeypatch.setattr(
+        AdapterRegistry,
+        "get",
+        classmethod(
+            lambda cls, adapter_type: (
+                FakeSalesforceAdapterClass
+                if adapter_type == "salesforce"
+                else original_get(adapter_type)
+            )
+        ),
+    )
 
     integ = await svc.register_integration(
         workspace_id=ws.id,
