@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import platform
+import socket
 import subprocess
 import sys
 import time
@@ -38,11 +39,26 @@ def _venv_python(pkg_dir: Path) -> Path:
 
 
 def _run(
-    cmd: list[str], cwd: Path | None = None, check: bool = True
+    cmd: list[str],
+    cwd: Path | None = None,
+    check: bool = True,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a command with output streaming."""
     console.print(f"  [dim]→ {' '.join(cmd)}[/dim]")
-    return subprocess.run(cmd, cwd=cwd or ROOT, check=check)
+    return subprocess.run(cmd, cwd=cwd or ROOT, check=check, env=env)
+
+
+def _wait_for_port(host: str, port: int, timeout_sec: int = 60) -> None:
+    """Wait until a TCP port is reachable."""
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return
+        except OSError:
+            time.sleep(1)
+    raise TimeoutError(f"Timed out waiting for {host}:{port}")
 
 
 def _create_venv(pkg_dir: Path) -> None:
@@ -115,7 +131,7 @@ def start():
                 str(server_py),
                 "-m",
                 "uvicorn",
-                "main:app",
+                "app.main:app",
                 "--reload",
                 "--port",
                 "8000",
@@ -175,6 +191,9 @@ def test(
         default="", help="Package to test: domain, engine, server, runner (empty = all)"
     ),
     unit: bool = typer.Option(False, "--unit", help="Run only unit tests"),
+    with_docker: bool = typer.Option(
+        False, "--with-docker", help="Start Docker Postgres for server tests"
+    ),
 ):
     """Run tests for one or all packages."""
     console.print("\n[bold magenta]Conduit — Tests[/bold magenta]\n")
@@ -191,29 +210,52 @@ def test(
     )
 
     total_failed = 0
-    for pkg_dir in targets:
-        if not pkg_dir.exists():
-            continue
+    docker_started = False
+    try:
+        needs_server_tests = any(pkg_dir.name == "server" for pkg_dir in targets)
+        if with_docker and needs_server_tests:
+            console.print("\n[bold cyan]docker[/bold cyan]")
+            _run(["docker", "compose", "up", "-d", "postgres"], cwd=ROOT)
+            _wait_for_port("127.0.0.1", 5432, timeout_sec=60)
+            docker_started = True
+            console.print("[green]✓ Postgres is reachable on 127.0.0.1:5432[/green]")
 
-        py = _venv_python(pkg_dir)
-        if not py.exists():
-            console.print(
-                f"[yellow]Skipping {pkg_dir.name} — no venv. Run 'conduit-dev setup'.[/yellow]"
+        for pkg_dir in targets:
+            if not pkg_dir.exists():
+                continue
+
+            py = _venv_python(pkg_dir)
+            if not py.exists():
+                console.print(
+                    f"[yellow]Skipping {pkg_dir.name} — no venv. Run 'conduit-dev setup'.[/yellow]"
+                )
+                continue
+
+            console.print(f"\n[bold cyan]{pkg_dir.name}[/bold cyan]")
+            test_dir = pkg_dir / "tests"
+            if unit:
+                test_dir = test_dir / "unit"
+
+            cmd_env: dict[str, str] | None = None
+            if pkg_dir.name == "server":
+                cmd_env = os.environ.copy()
+                cmd_env.setdefault(
+                    "CONDUIT_TEST_DB_URL",
+                    "postgresql+asyncpg://conduit:conduit123@127.0.0.1:5432/conduit_test",
+                )
+
+            result = _run(
+                [str(py), "-m", "pytest", str(test_dir), "-v", "--tb=short"],
+                cwd=pkg_dir,
+                check=False,
+                env=cmd_env,
             )
-            continue
-
-        console.print(f"\n[bold cyan]{pkg_dir.name}[/bold cyan]")
-        test_dir = pkg_dir / "tests"
-        if unit:
-            test_dir = test_dir / "unit"
-
-        result = _run(
-            [str(py), "-m", "pytest", str(test_dir), "-v", "--tb=short"],
-            cwd=pkg_dir,
-            check=False,
-        )
-        if result.returncode != 0:
-            total_failed += 1
+            if result.returncode != 0:
+                total_failed += 1
+    finally:
+        if docker_started:
+            console.print("\n[bold cyan]docker[/bold cyan]")
+            _run(["docker", "compose", "stop", "postgres"], cwd=ROOT, check=False)
 
     if total_failed:
         console.print(

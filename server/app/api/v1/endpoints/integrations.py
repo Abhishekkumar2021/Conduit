@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.api.dependencies.services import get_integration_service
@@ -58,12 +58,15 @@ async def create_integration(
     req: IntegrationCreate,
     integration_service: IntegrationService = Depends(get_integration_service),
 ):
-    return await integration_service.register_integration(
-        workspace_id=workspace_id,
-        name=req.name,
-        adapter_type=req.adapter_type,
-        config=req.config,
-    )
+    try:
+        return await integration_service.register_integration(
+            workspace_id=workspace_id,
+            name=req.name,
+            adapter_type=req.adapter_type,
+            config=req.config,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get(

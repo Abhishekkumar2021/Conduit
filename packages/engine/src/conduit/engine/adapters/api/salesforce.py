@@ -91,7 +91,8 @@ class SalesforceAdapter(BaseAdapter):
             desc = self.sf.describe()
             objects = desc.get("sobjects", [])
             return [
-                {"qualified_name": obj["name"], "asset_type": "object"}
+                # Persist as "collection" to align with DB asset_type constraints.
+                {"qualified_name": obj["name"], "asset_type": "collection"}
                 for obj in objects
                 if obj.get("queryable")
             ]

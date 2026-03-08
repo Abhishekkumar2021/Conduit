@@ -78,7 +78,7 @@ const ADAPTER_UI_MAP: Record<
   string,
   { icon: React.ElementType; color: string }
 > = {
-  postgres: {
+  postgresql: {
     icon: Database,
     color: "from-blue-500/20 to-blue-600/20 text-blue-500 dark:text-blue-400",
   },

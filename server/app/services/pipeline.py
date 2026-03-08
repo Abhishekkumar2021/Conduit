@@ -3,6 +3,7 @@ Conduit Server — Pipeline service.
 """
 
 import logging
+from datetime import datetime
 from typing import Any, Sequence
 from uuid import UUID
 
@@ -124,3 +125,40 @@ class PipelineService:
             rev.stages = await self.stage_repo.get_by_revision(rev.id)
             rev.edges = await self.edge_repo.get_by_revision(rev.id)
         return revisions
+
+    async def publish_revision(self, pipeline_id: UUID, revision_id: UUID) -> Pipeline:
+        """
+        Publish a specific revision and mark it as the pipeline's active revision.
+        """
+        pipeline = await self.pipeline_repo.get(pipeline_id)
+        if not pipeline:
+            raise ValueError("Pipeline not found")
+
+        revision = await self.revision_repo.get(revision_id)
+        if not revision or revision.pipeline_id != pipeline_id:
+            raise ValueError("Revision not found for this pipeline")
+
+        # Clear any previously published revision flags.
+        existing_revisions = await self.revision_repo.get_by_pipeline(pipeline_id)
+        for existing in existing_revisions:
+            if existing.is_published and existing.id != revision_id:
+                await self.revision_repo.update(existing.id, {"is_published": False})
+
+        await self.revision_repo.update(
+            revision_id,
+            {
+                "is_published": True,
+                "published_at": datetime.now(),
+            },
+        )
+        await self.pipeline_repo.update(
+            pipeline_id,
+            {
+                "published_revision_id": revision_id,
+                "status": "active",
+            },
+        )
+
+        updated = await self.pipeline_repo.get(pipeline_id)
+        logger.info("Published revision %s for pipeline %s", revision_id, pipeline_id)
+        return updated

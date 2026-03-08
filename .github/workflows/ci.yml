@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/domain[dev]
+          python -m pip install -e packages/engine[dev]
+          python -m pip install -e runner[dev]
+
+      - name: Test domain
+        run: |
+          PYTHONPATH=packages/domain/src python -m pytest packages/domain/tests -q
+
+      - name: Test engine
+        run: |
+          PYTHONPATH=packages/engine/src:packages/domain/src python -m pytest packages/engine/tests -q
+
+      - name: Test runner
+        run: |
+          PYTHONPATH=runner/src:packages/engine/src:packages/domain/src python -m pytest runner/tests -q
+
+  server-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: conduit
+          POSTGRES_PASSWORD: conduit123
+          POSTGRES_DB: conduit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U conduit"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      CONDUIT_TEST_DB_URL: postgresql+asyncpg://conduit:conduit123@127.0.0.1:5432/conduit_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install server dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e packages/domain[dev]
+          python -m pip install -e packages/engine[dev]
+          python -m pip install -e server
+          python -m pip install pytest pytest-asyncio pytest-cov anyio
+
+      - name: Wait for PostgreSQL
+        run: |
+          python - <<'PY'
+          import socket, time, sys
+          deadline = time.time() + 60
+          while time.time() < deadline:
+              try:
+                  with socket.create_connection(("127.0.0.1", 5432), timeout=1):
+                      print("postgres ready")
+                      sys.exit(0)
+              except OSError:
+                  time.sleep(1)
+          raise SystemExit("postgres not ready within 60s")
+          PY
+
+      - name: Test server
+        run: |
+          cd server
+          python -m pytest tests -q
+
+  console:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: console/package-lock.json
+
+      - name: Install console dependencies
+        run: |
+          cd console
+          npm ci
+
+      - name: Test console
+        run: |
+          cd console
+          npm run test -- --run
+
+      - name: Build console
+        run: |
+          cd console
+          npm run build

@@ -7,6 +7,10 @@ import logging
 import httpx
 from typing import Any, Dict
 
+from conduit.engine.contracts import (
+    RunClaimPayloadValidationError,
+    validate_run_claim_payload,
+)
 from conduit.engine.core.graph import Graph, Node
 from conduit.engine.core.runner import LocalRunner
 
@@ -37,6 +41,7 @@ class RunnerDaemon:
 
     def _poll_once(self):
         """Execute a single polling iteration."""
+        data: dict[str, Any] | None = None
         try:
             # 1. Claim pending run
             resp = self.client.post(f"{self.api_url}/runs/claim")
@@ -46,6 +51,7 @@ class RunnerDaemon:
 
             resp.raise_for_status()
             data = resp.json()
+            validate_run_claim_payload(data)
             run_id = data["run_id"]
 
             logger.info(f"Claimed Run {run_id}. Preparing execution.")
@@ -56,6 +62,13 @@ class RunnerDaemon:
                 logger.exception(f"Execution failed for {run_id}: {e}")
                 self._update_status(run_id, "failed", str(e))
 
+        except RunClaimPayloadValidationError as e:
+            run_id = ""
+            if isinstance(data, dict):
+                run_id = str(data.get("run_id", "")).strip()
+            logger.error("Invalid run claim payload: %s", e)
+            if run_id:
+                self._update_status(run_id, "failed", f"Invalid claim payload: {e}")
         except httpx.HTTPError as e:
             logger.error(f"Failed to communicate with API: {e}")
 

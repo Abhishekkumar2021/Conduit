@@ -17,8 +17,11 @@ class PipelineCreate(BaseModel):
 
 class PipelineResponse(BaseModel):
     id: UUID
+    workspace_id: UUID
     name: str
     description: str
+    status: str
+    published_revision_id: UUID | None = None
 
     model_config = {"from_attributes": True}
 
@@ -135,3 +138,18 @@ async def get_pipeline_revisions(
     pipeline_service: PipelineService = Depends(get_pipeline_service),
 ):
     return await pipeline_service.get_pipeline_revisions(pipeline_id)
+
+
+@router.post(
+    "/pipelines/{pipeline_id}/revisions/{revision_id}/publish",
+    response_model=PipelineResponse,
+)
+async def publish_revision(
+    pipeline_id: UUID,
+    revision_id: UUID,
+    pipeline_service: PipelineService = Depends(get_pipeline_service),
+):
+    try:
+        return await pipeline_service.publish_revision(pipeline_id, revision_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e

@@ -32,6 +32,11 @@ class AdapterRegistry:
     _discovered: bool = False
 
     @classmethod
+    def normalize_type(cls, adapter_type: str) -> str:
+        """Normalize adapter type input to canonical lowercase form."""
+        return adapter_type.strip().lower()
+
+    @classmethod
     def discover(cls) -> None:
         """Auto-discover all adapter classes in sql/, nosql/, storage/, api/ subdirectories."""
         if cls._discovered:
@@ -71,11 +76,15 @@ class AdapterRegistry:
     def get(cls, adapter_type: str) -> type[BaseAdapter]:
         """Get an adapter class by its type identifier."""
         cls.discover()
-        if adapter_type not in cls._adapters:
+        normalized = cls.normalize_type(adapter_type)
+        if normalized not in cls._adapters:
             available = ", ".join(sorted(cls._adapters.keys()))
-            msg = f"Unknown adapter type: '{adapter_type}'. Available: {available}"
+            msg = (
+                f"Unknown adapter type: '{adapter_type}' (normalized: '{normalized}'). "
+                f"Available: {available}"
+            )
             raise KeyError(msg)
-        return cls._adapters[adapter_type]
+        return cls._adapters[normalized]
 
     @classmethod
     def create(cls, adapter_type: str, config: dict[str, Any]) -> BaseAdapter:

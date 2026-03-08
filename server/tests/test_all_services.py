@@ -22,7 +22,9 @@ from app.services.integration import IntegrationService
 from app.services.pipeline import PipelineService
 from app.services.run import RunService
 from app.services.user import UserService
+from app.services.vault import VaultService
 from app.services.workspace import WorkspaceService
+from conduit.engine.contracts import validate_run_claim_payload
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,6 +53,7 @@ def _make_integration_service(session):
     return IntegrationService(
         IntegrationRepository(session),
         AssetRepository(session),
+        VaultService(),
     )
 
 
@@ -58,6 +61,7 @@ def _make_run_service(session):
     return RunService(
         RunRepository(session),
         StepRepository(session),
+        VaultService(),
     )
 
 
@@ -284,6 +288,26 @@ async def test_pipeline_service_get_revisions(db_session):
 
 
 @pytest.mark.asyncio
+async def test_pipeline_service_publish_revision(db_session):
+    user = await _create_user(db_session, "pipe_publish@test.com")
+    ws = await _create_workspace(db_session, user.id, "PP WS", "pp-ws")
+    svc = _make_pipeline_service(db_session)
+
+    pipe = await svc.create_pipeline(workspace_id=ws.id, name="Publish Pipe")
+    rev = await svc.create_revision(
+        pipeline_id=pipe.id,
+        number=1,
+        summary="ready",
+        stages=[{"key": "a", "label": "A", "kind": "extract", "config": {}}],
+        edges=[],
+    )
+
+    published = await svc.publish_revision(pipe.id, rev.id)
+    assert published.published_revision_id == rev.id
+    assert published.status == "active"
+
+
+@pytest.mark.asyncio
 async def test_pipeline_service_revision_with_integration_id(db_session):
     user = await _create_user(db_session, "pipe_integ@test.com")
     ws = await _create_workspace(db_session, user.id, "PI WS", "pi-ws")
@@ -294,7 +318,7 @@ async def test_pipeline_service_revision_with_integration_id(db_session):
     integ = await int_svc.register_integration(
         workspace_id=ws.id,
         name="PG Source",
-        adapter_type="postgres",
+        adapter_type="postgresql",
         config={"host": "localhost"},
     )
 
@@ -349,7 +373,7 @@ async def test_integration_service_list(db_session):
     await svc.register_integration(
         workspace_id=ws.id,
         name="PG1",
-        adapter_type="postgres",
+        adapter_type="postgresql",
         config={},
     )
     await svc.register_integration(
@@ -490,7 +514,7 @@ async def test_run_service_claim_pending_run(db_session):
             "label": "C1",
             "kind": "extract",
             "config": {
-                "adapter": "postgres",
+                "adapter": "postgresql",
                 "integration_id": "123e4567-e89b-12d3-a456-426614174000",
             },
             "position_x": 0,
@@ -515,6 +539,8 @@ async def test_run_service_claim_pending_run(db_session):
     assert claimed is not None
     assert claimed["run_id"] == str(run.id)
     assert len(claimed["graph"]["nodes"]) == 1
+    # Contract validation for server->runner payload shape
+    validate_run_claim_payload(claimed)
 
     # Second claim should be empty
     second = await svc.claim_pending_run()

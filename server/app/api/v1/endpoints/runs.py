@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -87,7 +88,32 @@ class RunStatusUpdate(BaseModel):
     duration_ms: int | None = None
 
 
-@router.post("/runs/claim")
+class ClaimNodeResponse(BaseModel):
+    kind: str
+    name: str
+    config: dict[str, Any]
+
+
+class ClaimEdgeResponse(BaseModel):
+    id: str
+    source: str
+    target: str
+
+
+class ClaimGraphResponse(BaseModel):
+    nodes: dict[str, ClaimNodeResponse]
+    edges: list[ClaimEdgeResponse]
+
+
+class ClaimRunResponse(BaseModel):
+    run_id: str
+    pipeline_id: str
+    workspace_id: str
+    integration_configs: dict[str, dict[str, Any]]
+    graph: ClaimGraphResponse
+
+
+@router.post("/runs/claim", response_model=ClaimRunResponse)
 async def claim_run(
     run_service: RunService = Depends(get_run_service),
 ):

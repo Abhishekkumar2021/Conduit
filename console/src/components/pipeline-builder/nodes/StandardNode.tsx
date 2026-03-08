@@ -4,7 +4,7 @@ import { Database, Cloud, FileSpreadsheet, Plug } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ADAPTER_ICONS: Record<string, React.ElementType> = {
-  postgres: Database,
+  postgresql: Database,
   snowflake: Database,
   salesforce: Cloud,
   hubspot: Cloud,

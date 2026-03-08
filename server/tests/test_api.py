@@ -99,6 +99,14 @@ async def test_pipeline_endpoints(db_session):
         )
         assert response.status_code == 201
         assert response.json()["number"] == 1
+        rev_id = response.json()["id"]
+
+        # Publish revision
+        response = await ac.post(
+            f"/api/v1/pipelines/{pipe_id}/revisions/{rev_id}/publish"
+        )
+        assert response.status_code == 200
+        assert response.json()["published_revision_id"] == rev_id
 
 
 @pytest.mark.asyncio

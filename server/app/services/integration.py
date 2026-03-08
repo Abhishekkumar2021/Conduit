@@ -35,7 +35,12 @@ class IntegrationService:
         """Register a new data source integration."""
         from conduit.engine.adapters.registry import AdapterRegistry
 
-        meta = AdapterRegistry.get(adapter_type)
+        try:
+            adapter_cls = AdapterRegistry.get(adapter_type)
+        except KeyError as e:
+            raise ValueError(str(e)) from e
+
+        meta = adapter_cls.meta
         vault_status = "not_configured"
         for field_def in meta.vault_fields:
             if ":secret" in field_def:
@@ -46,7 +51,7 @@ class IntegrationService:
             {
                 "workspace_id": workspace_id,
                 "name": name,
-                "adapter_type": adapter_type,
+                "adapter_type": meta.type,
                 "config": config,
                 "vault_status": vault_status,
             },

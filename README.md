@@ -32,6 +32,9 @@ conduit-dev start
 
 # Run tests
 conduit-dev test
+
+# Run server tests with dockerized Postgres
+conduit-dev test server --with-docker
 ```
 
 ## Project Structure

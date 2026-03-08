@@ -28,14 +28,13 @@ def test_topological_sort_linear():
     assert graph.topological_sort() == ["1", "2", "3"]
 
 
-@pytest.mark.asyncio
-async def test_runner_basic_flow():
+def test_runner_basic_flow():
     # Mock adapters and registry
     n1 = Node(
         id="1",
         key="s1",
         label="E",
-        kind="postgres_extract",
+        kind="postgresql_extract",
         integration_id="int1",
         config={"asset": "users"},
     )
@@ -43,7 +42,7 @@ async def test_runner_basic_flow():
         id="2",
         key="s2",
         label="L",
-        kind="postgres_load",
+        kind="postgresql_load",
         integration_id="int2",
         config={"asset": "users_clean"},
     )
@@ -65,7 +64,7 @@ async def test_runner_basic_flow():
         "conduit.engine.core.runner.AdapterRegistry.create", return_value=mock_adapter
     ):
         runner = LocalRunner(graph, {"int1": {}, "int2": {}}, run_id="test-run")
-        result = await runner.run()
+        result = runner.run()
 
         assert result["status"] == "success"
         assert len(result["steps"]) == 2
@@ -73,8 +72,7 @@ async def test_runner_basic_flow():
         assert mock_adapter.write.call_count == 2
 
 
-@pytest.mark.asyncio
-async def test_runner_with_transform():
+def test_runner_with_transform():
     n1 = Node(
         id="1",
         key="s1",
@@ -113,7 +111,7 @@ async def test_runner_with_transform():
             return_value=mock_adapter,
         ):
             runner = LocalRunner(graph, {"int1": {}, "int2": {}})
-            await runner.run()
+            runner.run()
 
             # Verify write was called with doubled values
             args, kwargs = mock_adapter.write.call_args

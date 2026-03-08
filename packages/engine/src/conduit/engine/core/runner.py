@@ -56,7 +56,9 @@ class LocalRunner:
                 )
 
                 # Normalize node kind for routing
-                base_kind = node.kind.split("_")[-1]  # e.g. postgres_extract -> extract
+                base_kind = (
+                    node.kind.split("_")[-1]
+                )  # e.g. postgresql_extract -> extract
 
                 if base_kind == "extract":
                     self._handle_extract(node)

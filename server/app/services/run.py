@@ -2,7 +2,6 @@
 Conduit Server — Run service.
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Sequence
@@ -11,8 +10,9 @@ from uuid import UUID
 from app.infra.database.models import Run, Step, Revision
 from app.infra.database.repositories.run import RunRepository, StepRepository
 from app.services.vault import VaultService
-from sqlalchemy.orm import selectinload
+from conduit.engine.contracts import validate_run_claim_payload
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class RunService:
         revision = rev_result.scalar_one_or_none()
 
         # Return dict representation suitable for Runner
-        integration_ids = []
+        integration_ids: set[UUID] = set()
         nodes = {}
         edges = []
 
@@ -118,18 +118,19 @@ class RunService:
             from uuid import UUID
 
             for s in revision.stages:
+                node_config = dict(s.config or {})
+                if s.integration_id and "integration_id" not in node_config:
+                    node_config["integration_id"] = str(s.integration_id)
+
                 nodes[str(s.id)] = {
                     "kind": s.kind,
                     "name": s.label,
-                    "config": s.config,
+                    "config": node_config,
                 }
-                if (
-                    s.config
-                    and isinstance(s.config, dict)
-                    and "integration_id" in s.config
-                ):
+                integration_id = node_config.get("integration_id")
+                if integration_id:
                     try:
-                        integration_ids.append(UUID(s.config["integration_id"]))
+                        integration_ids.add(UUID(str(integration_id)))
                     except ValueError:
                         pass
 
@@ -137,8 +138,8 @@ class RunService:
                 edges.append(
                     {
                         "id": str(e.id),
-                        "source": str(e.source_stage_id),
-                        "target": str(e.target_stage_id),
+                        "source": str(e.source_id),
+                        "target": str(e.target_id),
                     }
                 )
 
@@ -164,7 +165,7 @@ class RunService:
                     )
                     integration_configs[str(integration.id)] = integration.config
 
-        return {
+        payload = {
             "run_id": str(run.id),
             "pipeline_id": str(run.pipeline_id),
             "workspace_id": str(run.workspace_id),
@@ -174,6 +175,8 @@ class RunService:
                 "edges": edges,
             },
         }
+        validate_run_claim_payload(payload)
+        return payload
 
     async def update_run_status(
         self,

@@ -32,7 +32,7 @@ async def test_integration_repository(db_session):
         {
             "workspace_id": ws.id,
             "name": "Postgres Source",
-            "adapter_type": "postgres",
+            "adapter_type": "postgresql",
             "created_by": user.id,
         },
     )
@@ -55,7 +55,7 @@ async def test_asset_repositories(db_session):
         {
             "workspace_id": ws.id,
             "name": "Source",
-            "adapter_type": "postgres",
+            "adapter_type": "postgresql",
             "created_by": user.id,
         },
     )
