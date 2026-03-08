@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import type { Revision, Run, RevisionCreate } from "@/types/api";
+import type { Pipeline, Revision, Run, RevisionCreate } from "@/types/api";
 
 export const pipelineKeys = {
   all: ["pipelines"] as const,
@@ -92,6 +92,25 @@ export function useCreateRevision(pipelineId: string) {
       });
       queryClient.invalidateQueries({
         queryKey: pipelineKeys.revisions(pipelineId),
+      });
+    },
+  });
+}
+
+export function usePublishRevision(pipelineId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (revisionId: string) => {
+      const { data } = await api.post<Pipeline>(
+        `/pipelines/${pipelineId}/revisions/${revisionId}/publish`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      // Keep this broad because pipeline state is read from multiple hooks/pages.
+      queryClient.invalidateQueries({
+        queryKey: pipelineKeys.all,
       });
     },
   });

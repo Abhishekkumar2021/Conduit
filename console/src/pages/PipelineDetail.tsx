@@ -2,12 +2,12 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Play,
-  Pause,
   Clock,
   Settings,
   CheckCircle2,
   Loader2,
   Pencil,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
@@ -20,6 +20,7 @@ import {
   usePipelineRuns,
   useTriggerRun,
   useCreateRevision,
+  usePublishRevision,
 } from "@/hooks/queries/usePipelineDetails";
 import { toast } from "sonner";
 import { RUN_STATUS } from "@/lib/constants";
@@ -47,6 +48,9 @@ export function PipelineDetail() {
     id || "",
   );
   const { mutate: createRevision, isPending: isSaving } = useCreateRevision(
+    id || "",
+  );
+  const { mutate: publishRevision, isPending: isPublishing } = usePublishRevision(
     id || "",
   );
 
@@ -168,6 +172,9 @@ export function PipelineDetail() {
   const latestRun = runs?.[0];
   const isRunning =
     latestRun && ["pending", "queued", "running"].includes(latestRun.status);
+  const hasPublishedRevision = !!pipeline?.published_revision_id;
+  const latestRevisionIsPublished =
+    !!latestRevision && pipeline?.published_revision_id === latestRevision.id;
 
   if (isLoading) {
     return (
@@ -316,15 +323,41 @@ export function PipelineDetail() {
                 variant="secondary"
                 size="sm"
                 className="h-8 rounded-full px-3.5 text-xs bg-muted/50 hover:bg-muted border-border/50 transition-all font-medium text-muted-foreground hover:text-foreground"
+                disabled={isPublishing || !latestRevision || latestRevisionIsPublished}
+                onClick={() => {
+                  if (!latestRevision) {
+                    toast.error("Save a revision before publishing");
+                    return;
+                  }
+                  publishRevision(latestRevision.id, {
+                    onSuccess: () =>
+                      toast.success(`Published revision v${latestRevision.number}`),
+                    onError: (err: unknown) => {
+                      const error = err as {
+                        response?: { data?: { detail?: string } };
+                      };
+                      toast.error(
+                        error.response?.data?.detail ||
+                          "Failed to publish revision",
+                      );
+                    },
+                  });
+                }}
               >
-                <Pause className="h-3.5 w-3.5 mr-1.5" strokeWidth={1.5} />
-                Pause
+                {isPublishing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                ) : latestRevisionIsPublished ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" strokeWidth={1.5} />
+                ) : (
+                  <Upload className="h-3.5 w-3.5 mr-1.5" strokeWidth={1.5} />
+                )}
+                {latestRevisionIsPublished ? "Published" : "Publish"}
               </Button>
               <Button
                 variant="primary"
                 size="sm"
                 className="h-8 rounded-full px-4 text-xs font-medium shadow-sm bg-blue-600 hover:bg-blue-500 border-none transition-all"
-                disabled={isTriggering || !!isRunning}
+                disabled={isTriggering || !!isRunning || !hasPublishedRevision}
                 onClick={() => {
                   triggerRun(undefined, {
                     onSuccess: () => toast.success("Pipeline run triggered"),

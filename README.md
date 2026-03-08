@@ -55,6 +55,27 @@ conduit/
 - [Architecture Blueprint](docs/architecture.md)
 - [Contributing](docs/CONTRIBUTING.md)
 
+## CI/CD
+
+- `CI` workflow runs lint + tests + build checks on pull requests and pushes to `main`.
+- Python jobs enforce a coverage gate of `>=90%` for `domain`, `engine`, `runner`, and `server`.
+- `CD` workflow runs full verification, builds release artifacts, then:
+  - deploys to `staging` on pushes to `main`
+  - creates GitHub Releases on tags like `v1.2.3`
+  - deploys to `production` on version tags or manual dispatch
+
+Required GitHub configuration:
+
+- Environments:
+  - `staging`
+  - `production` (recommended: require manual approval)
+- Optional repository variables (for custom env names):
+  - `STAGING_ENVIRONMENT` (defaults to `staging`)
+  - `PRODUCTION_ENVIRONMENT` (defaults to `production`)
+- Environment secrets:
+  - `staging`: `DEPLOY_WEBHOOK_URL`
+  - `production`: `DEPLOY_WEBHOOK_URL`
+
 ## License
 
 MIT

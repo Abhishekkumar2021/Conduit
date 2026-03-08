@@ -2,11 +2,63 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
+      - "release/**"
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  python-packages:
+  workflow-lint:
+    name: Lint GitHub Workflows
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Actionlint
+        uses: rhysd/actionlint@v1
+
+  dependency-review:
+    name: Dependency Review (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+
+  python-packages:
+    name: Python Tests (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: domain
+            test_path: packages/domain/tests
+            cov_target: conduit.domain
+            pythonpath: packages/domain/src
+          - package: engine
+            test_path: packages/engine/tests
+            cov_target: conduit.engine
+            pythonpath: packages/engine/src:packages/domain/src
+          - package: runner
+            test_path: runner/tests
+            cov_target: conduit.runner
+            pythonpath: runner/src:packages/engine/src:packages/domain/src
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -15,27 +67,36 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-      - name: Install package dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e packages/domain[dev]
           python -m pip install -e packages/engine[dev]
           python -m pip install -e runner[dev]
+          python -m pip install pytest-cov
 
-      - name: Test domain
+      - name: Test with coverage gate
         run: |
-          PYTHONPATH=packages/domain/src python -m pytest packages/domain/tests -q
+          PYTHONPATH="${{ matrix.pythonpath }}" \
+          python -m pytest "${{ matrix.test_path }}" \
+            --cov="${{ matrix.cov_target }}" \
+            --cov-report=term \
+            --cov-report=xml:"coverage-${{ matrix.package }}.xml" \
+            --cov-fail-under=90 \
+            -q
 
-      - name: Test engine
-        run: |
-          PYTHONPATH=packages/engine/src:packages/domain/src python -m pytest packages/engine/tests -q
-
-      - name: Test runner
-        run: |
-          PYTHONPATH=runner/src:packages/engine/src:packages/domain/src python -m pytest runner/tests -q
+      - name: Upload coverage xml
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.package }}
+          path: coverage-${{ matrix.package }}.xml
+          if-no-files-found: error
+          retention-days: 14
 
   server-tests:
+    name: Server Tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -61,6 +122,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install server dependencies
         run: |
@@ -85,12 +147,26 @@ jobs:
           raise SystemExit("postgres not ready within 60s")
           PY
 
-      - name: Test server
+      - name: Run server tests with coverage gate
         run: |
           cd server
-          python -m pytest tests -q
+          PYTHONPATH=. python -m pytest tests \
+            --cov=app \
+            --cov-report=term \
+            --cov-report=xml:coverage-server.xml \
+            --cov-fail-under=90 \
+            -q
+
+      - name: Upload server coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-server
+          path: server/coverage-server.xml
+          if-no-files-found: error
+          retention-days: 14
 
   console:
+    name: Console Quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -104,16 +180,25 @@ jobs:
           cache-dependency-path: console/package-lock.json
 
       - name: Install console dependencies
-        run: |
-          cd console
-          npm ci
+        working-directory: console
+        run: npm ci
 
-      - name: Test console
-        run: |
-          cd console
-          npm run test -- --run
+      - name: Lint console
+        working-directory: console
+        run: npm run lint
+
+      - name: Test console (coverage)
+        working-directory: console
+        run: npm run test:coverage
 
       - name: Build console
-        run: |
-          cd console
-          npm run build
+        working-directory: console
+        run: npm run build
+
+      - name: Upload console build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-dist
+          path: console/dist
+          if-no-files-found: error
+          retention-days: 14

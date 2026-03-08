@@ -4,6 +4,8 @@ Comprehensive service-layer tests for Conduit Server.
 Covers: PipelineService, IntegrationService, RunService, WorkspaceService, UserService
 """
 
+from contextlib import contextmanager
+
 import pytest
 
 from app.infra.database.repositories.asset import AssetRepository
@@ -387,6 +389,52 @@ async def test_integration_service_list(db_session):
     assert len(integrations) == 2
 
 
+@pytest.mark.asyncio
+async def test_integration_service_sync_assets_salesforce_collection(
+    db_session, monkeypatch
+):
+    from conduit.engine.adapters.registry import AdapterRegistry
+
+    user = await _create_user(db_session, "int_sf_sync@test.com")
+    ws = await _create_workspace(db_session, user.id, "SF Sync WS", "sf-sync-ws")
+    svc = _make_integration_service(db_session)
+
+    integ = await svc.register_integration(
+        workspace_id=ws.id,
+        name="SF Source",
+        adapter_type="salesforce",
+        config={
+            "instance_url": "https://test.salesforce.com",
+            "username": "sf-user@example.com",
+        },
+    )
+
+    class FakeSalesforceAdapter:
+        @contextmanager
+        def session(self):
+            yield self
+
+        def discover(self):
+            return [
+                {"qualified_name": "Account", "asset_type": "collection"},
+                {"qualified_name": "Contact", "asset_type": "collection"},
+            ]
+
+    monkeypatch.setattr(
+        AdapterRegistry,
+        "create",
+        classmethod(lambda cls, adapter_type, config: FakeSalesforceAdapter()),
+    )
+
+    synced = await svc.sync_assets(integ.id)
+    assert synced.status == "healthy"
+    assert "Successfully synced 2 assets" in (synced.status_message or "")
+
+    assets = await svc.asset_repo.get_by_integration(integ.id)
+    assert len(assets) == 2
+    assert {a.asset_type for a in assets} == {"collection"}
+
+
 # ── RunService ───────────────────────────────────────────────────────────────
 
 
@@ -545,3 +593,86 @@ async def test_run_service_claim_pending_run(db_session):
     # Second claim should be empty
     second = await svc.claim_pending_run()
     assert second is None
+
+
+@pytest.mark.asyncio
+async def test_run_service_claim_pending_run_contract_payload_details(
+    db_session, monkeypatch
+):
+    secret_env_key = "CONDUIT_TEST_POSTGRES_PASSWORD"
+    monkeypatch.setenv(secret_env_key, "super-secret-password")
+
+    user = await _create_user(db_session, "claim_contract@test.com")
+    ws = await _create_workspace(
+        db_session, user.id, "Claim Contract WS", "claim-contract-ws"
+    )
+
+    int_svc = _make_integration_service(db_session)
+    integ = await int_svc.register_integration(
+        workspace_id=ws.id,
+        name="Contract PG",
+        adapter_type="postgresql",
+        config={
+            "host": "localhost",
+            "database": "analytics",
+            "username": "etl_user",
+            "password": secret_env_key,
+        },
+    )
+
+    pipe_svc = _make_pipeline_service(db_session)
+    pipe = await pipe_svc.create_pipeline(workspace_id=ws.id, name="Contract Pipe")
+    rev = await pipe_svc.create_revision(
+        pipeline_id=pipe.id,
+        number=1,
+        summary="contract payload",
+        stages=[
+            {
+                "key": "extract_pg",
+                "label": "Extract PG",
+                "kind": "extract",
+                # Intentionally omit integration_id from config to verify DB-column injection.
+                "config": {"adapter": "postgresql"},
+                "integration_id": str(integ.id),
+                "position_x": 0,
+                "position_y": 0,
+            },
+            {
+                "key": "load_sink",
+                "label": "Load Sink",
+                "kind": "load",
+                "config": {},
+                "position_x": 300,
+                "position_y": 0,
+            },
+        ],
+        edges=[{"source_key": "extract_pg", "target_key": "load_sink"}],
+    )
+
+    stage_id_by_key = {stage.key: str(stage.id) for stage in rev.stages}
+
+    svc = _make_run_service(db_session)
+    run = await svc.initialize_run(
+        workspace_id=ws.id,
+        pipeline_id=pipe.id,
+        revision_id=rev.id,
+        trigger_type="manual",
+    )
+
+    claimed = await svc.claim_pending_run()
+    assert claimed is not None
+    assert claimed["run_id"] == str(run.id)
+    validate_run_claim_payload(claimed)
+
+    extract_node = claimed["graph"]["nodes"][stage_id_by_key["extract_pg"]]
+    assert extract_node["config"]["integration_id"] == str(integ.id)
+
+    expected_edge = {
+        "id": str(rev.edges[0].id),
+        "source": stage_id_by_key["extract_pg"],
+        "target": stage_id_by_key["load_sink"],
+    }
+    assert claimed["graph"]["edges"] == [expected_edge]
+
+    resolved = claimed["integration_configs"][str(integ.id)]
+    assert resolved["password"] == "super-secret-password"

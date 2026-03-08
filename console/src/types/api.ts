@@ -15,6 +15,7 @@ export interface Pipeline {
   status: "draft" | "active" | "paused" | "archived";
   schedule_cron?: string;
   workspace_id: string;
+  published_revision_id?: string | null;
 }
 
 export interface PipelineCreate {

@@ -52,6 +52,23 @@ async def test_create_and_get_workspace(db_session):
         assert response.status_code == 200
         assert response.json()["slug"] == "api-ws"
 
+        # List workspaces
+        response = await ac.get("/api/v1/workspaces/")
+        assert response.status_code == 200
+        ids = {w["id"] for w in response.json()}
+        assert ws_id in ids
+
+
+@pytest.mark.asyncio
+async def test_get_workspace_not_found():
+    import uuid
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        response = await ac.get(f"/api/v1/workspaces/{uuid.uuid4()}")
+        assert response.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_pipeline_endpoints(db_session):
@@ -107,6 +124,17 @@ async def test_pipeline_endpoints(db_session):
         )
         assert response.status_code == 200
         assert response.json()["published_revision_id"] == rev_id
+
+
+@pytest.mark.asyncio
+async def test_get_pipeline_not_found():
+    import uuid
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        response = await ac.get(f"/api/v1/pipelines/{uuid.uuid4()}")
+        assert response.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -176,6 +204,39 @@ async def test_run_endpoints(db_session):
 
 
 @pytest.mark.asyncio
+async def test_trigger_run_requires_published_revision(db_session):
+    from app.infra.database.repositories.user import UserRepository
+    from app.infra.database.repositories.workspace import WorkspaceRepository
+    from app.infra.database.repositories.pipeline import PipelineRepository
+
+    user = await UserRepository(db_session).create(
+        {"email": "run_unpub@test.com", "display_name": "API User"}
+    )
+    ws = await WorkspaceRepository(db_session).create(
+        {"name": "Run Draft WS", "slug": "run-draft-ws", "created_by": user.id}
+    )
+    pipe = await PipelineRepository(db_session).create(
+        {"workspace_id": ws.id, "name": "Draft Pipe"}
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.post(f"/api/v1/pipelines/{pipe.id}/runs")
+        assert resp.status_code == 400
+        assert "Publish a revision first" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_claim_run_no_pending_returns_404():
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.post("/api/v1/runs/claim")
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_asset_discovery_endpoints(db_session, monkeypatch):
     from app.infra.database.repositories.user import UserRepository
     from app.infra.database.repositories.workspace import WorkspaceRepository
@@ -223,3 +284,72 @@ async def test_asset_discovery_endpoints(db_session, monkeypatch):
         data = resp.json()
         assert len(data) == 1
         assert data[0]["qualified_name"] == "public.mock_table"
+
+
+@pytest.mark.asyncio
+async def test_create_integration_invalid_adapter_returns_400(db_session):
+    from app.infra.database.repositories.user import UserRepository
+    from app.infra.database.repositories.workspace import WorkspaceRepository
+
+    user = await UserRepository(db_session).create(
+        {"email": "invalid_adapter@test.com", "display_name": "API User"}
+    )
+    ws = await WorkspaceRepository(db_session).create(
+        {"name": "Invalid Adapter WS", "slug": "invalid-adapter-ws", "created_by": user.id}
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        payload = {"name": "Bad Source", "adapter_type": "pg", "config": {}}
+        resp = await ac.post(f"/api/v1/workspaces/{ws.id}/integrations", json=payload)
+        assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_salesforce_asset_discovery_endpoint_persists_collection_assets(
+    db_session, monkeypatch
+):
+    from app.infra.database.repositories.user import UserRepository
+    from app.infra.database.repositories.workspace import WorkspaceRepository
+    from app.services.integration import IntegrationService
+
+    user = await UserRepository(db_session).create(
+        {"email": "sf_assets@test.com", "display_name": "API User"}
+    )
+    ws = await WorkspaceRepository(db_session).create(
+        {"name": "SF Asset WS", "slug": "sf-asset-ws", "created_by": user.id}
+    )
+
+    async def mock_sync_assets(self, integration_id):
+        integration = await self.integration_repo.get(integration_id)
+        await self.asset_repo.upsert_assets(
+            integration_id=integration_id,
+            workspace_id=ws.id,
+            assets_data=[
+                {"qualified_name": "Account", "asset_type": "collection"},
+                {"qualified_name": "Contact", "asset_type": "collection"},
+            ],
+        )
+        integration.status = "healthy"
+        await self.integration_repo.update(integration.id, {"status": "healthy"})
+        return integration
+
+    monkeypatch.setattr(IntegrationService, "sync_assets", mock_sync_assets)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        payload = {"name": "SF Source", "adapter_type": "salesforce", "config": {}}
+        resp = await ac.post(f"/api/v1/workspaces/{ws.id}/integrations", json=payload)
+        assert resp.status_code == 201
+        int_id = resp.json()["id"]
+
+        resp = await ac.post(f"/api/v1/integrations/{int_id}/discover")
+        assert resp.status_code == 200
+
+        resp = await ac.get(f"/api/v1/integrations/{int_id}/assets")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 2
+        assert {a["asset_type"] for a in data} == {"collection"}

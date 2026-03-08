@@ -28,6 +28,14 @@ def test_topological_sort_linear():
     assert graph.topological_sort() == ["1", "2", "3"]
 
 
+def test_graph_roots_and_leaves():
+    n1 = Node(id="1", key="s1", label="E", kind="extract")
+    n2 = Node(id="2", key="s2", label="L", kind="load")
+    graph = Graph([n1, n2], [{"source_id": "1", "target_id": "2"}])
+    assert graph.get_roots() == ["1"]
+    assert graph.get_leaves() == ["2"]
+
+
 def test_runner_basic_flow():
     # Mock adapters and registry
     n1 = Node(
