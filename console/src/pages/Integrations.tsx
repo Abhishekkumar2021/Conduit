@@ -45,6 +45,7 @@ import {
 } from "@/hooks/queries/useIntegrations";
 import { IntegrationDialog } from "@/components/integrations/IntegrationDialog";
 import type { Integration } from "@/types/api";
+import { useQueryAction } from "@/hooks/useQueryAction";
 
 export function Integrations() {
   const { data: workspaces } = useWorkspaces();
@@ -59,14 +60,21 @@ export function Integrations() {
     useUpdateIntegration(workspaceId);
   const { mutate: deleteIntegration } = useDeleteIntegration(workspaceId);
   const { data: runnerStatus } = useRunnerStatus();
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { action, setParams, clearParams } = useQueryAction();
   const [editingIntegration, setEditingIntegration] = useState<{
     id: string;
     name: string;
     adapter_type: string;
     config: Record<string, string | number>;
   } | null>(null);
+
+  // URL is the source of truth for the create/edit modal
+  const isModalOpen = action === "create" || action === "edit";
+
+  const closeModal = () => {
+    clearParams(["action", "id"]);
+    setEditingIntegration(null);
+  };
 
   // Drawer state
   const [selectedDrawerIntegration, setSelectedDrawerIntegration] = useState<{
@@ -100,16 +108,14 @@ export function Integrations() {
         },
         {
           onSuccess: () => {
-            setIsModalOpen(false);
-            setEditingIntegration(null);
+            closeModal();
           },
         },
       );
     } else {
       createIntegration(data, {
         onSuccess: () => {
-          setIsModalOpen(false);
-          setEditingIntegration(null);
+          closeModal();
         },
       });
     }
@@ -117,7 +123,7 @@ export function Integrations() {
 
   const openCreateMode = () => {
     setEditingIntegration(null);
-    setIsModalOpen(true);
+    setParams({ action: "create" });
   };
 
   const openEditMode = (int: Integration) => {
@@ -127,7 +133,7 @@ export function Integrations() {
       adapter_type: int.adapter_type,
       config: (int.config as Record<string, string | number>) || {},
     });
-    setIsModalOpen(true);
+    setParams({ action: "edit", id: int.id });
   };
 
   const handleDelete = (id: string) => {
@@ -333,10 +339,7 @@ export function Integrations() {
       <IntegrationDialog
         key={editingIntegration?.id || (isModalOpen ? "new" : "closed")}
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingIntegration(null);
-        }}
+        onClose={closeModal}
         adapters={adapters}
         workspaceId={workspaceId}
         integrationId={editingIntegration?.id}

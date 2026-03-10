@@ -11,8 +11,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
+  Search,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { CommandCenter } from "@/components/CommandCenter";
 import { cn } from "@/lib/utils";
 
 /* ─── Navigation ────────────────────────────────────────────── */
@@ -67,7 +69,34 @@ function SidebarContent({
         <Logo collapsed={collapsed} />
       </div>
 
-      <nav className="mt-8 flex flex-col gap-1 px-3">
+      <div className={cn("px-3 mt-4")}>
+        <button
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent("conduit:open-command-center"))
+          }
+          className={cn(
+            "flex items-center w-full gap-2 px-3 py-2 rounded-lg bg-accent/30 border border-border/20 text-muted-foreground/50 hover:bg-accent/50 hover:text-muted-foreground transition-all duration-150 text-left group",
+            collapsed && "justify-center px-0",
+          )}
+        >
+          <Search
+            className="h-4 w-4 shrink-0 transition-colors group-hover:text-foreground"
+            strokeWidth={2.5}
+          />
+          {!collapsed && (
+            <div className="flex-1 flex items-center justify-between min-w-0">
+              <span className="text-[13px] font-medium truncate">
+                Search...
+              </span>
+              <kbd className="hidden lg:inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border/40 bg-muted/40 text-[9px] font-bold opacity-60 transition-opacity group-hover:opacity-100">
+                ⌘K
+              </kbd>
+            </div>
+          )}
+        </button>
+      </div>
+
+      <nav className="mt-4 flex flex-col gap-1 px-3">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
@@ -241,6 +270,7 @@ export function AppLayout() {
 
   return (
     <div className="flex h-full flex-col md:flex-row overflow-hidden bg-background">
+      <CommandCenter />
       <MobileHeader open={mobileOpen} setOpen={setMobileOpen} />
       <DesktopSidebar
         collapsed={desktopCollapsed}

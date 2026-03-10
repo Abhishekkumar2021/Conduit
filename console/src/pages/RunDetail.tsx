@@ -9,10 +9,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Card } from "@/components/ui/Card";
+// import { Card } from "@/components/ui/Card";
 // import { RUN_STATUS } from "@/lib/constants";
 import { useRunDetail } from "@/hooks/queries/useRuns";
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
@@ -74,7 +73,11 @@ export function RunDetail() {
         description="Execution details and stage outcomes"
         actions={
           <Link to="/runs">
-            <Button variant="ghost" size="sm" className="h-9 px-3 text-xs font-semibold text-muted-foreground/60 hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold text-muted-foreground/60 hover:text-foreground"
+            >
               <ArrowLeft className="h-3.5 w-3.5 mr-2" />
               Back to Runs
             </Button>
@@ -145,7 +148,7 @@ export function RunDetail() {
                 No stages recorded for this run.
               </div>
             ) : (
-              run.steps.map((step, idx) => {
+              run.steps.map((step) => {
                 return (
                   <div
                     key={step.id}
@@ -180,7 +183,9 @@ export function RunDetail() {
                             <span className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-tight">
                               {step.stage_kind}
                             </span>
-                            <span className="text-[10px] text-muted-foreground/20">•</span>
+                            <span className="text-[10px] text-muted-foreground/20">
+                              •
+                            </span>
                             <span className="text-[11px] text-muted-foreground/40 font-medium tabular-nums">
                               {formatDuration(step.duration_ms)}
                             </span>
@@ -198,7 +203,9 @@ export function RunDetail() {
                           </div>
                           {step.records_failed > 0 && (
                             <div className="flex flex-col items-end min-w-[32px] text-rose-500/60">
-                              <span className="text-[8px] opacity-40">Fail</span>
+                              <span className="text-[8px] opacity-40">
+                                Fail
+                              </span>
                               <span>{step.records_failed}</span>
                             </div>
                           )}
@@ -208,7 +215,9 @@ export function RunDetail() {
                       {step.error_message && (
                         <div className="mt-3 rounded-lg bg-rose-500/5 border border-rose-500/10 p-3.5 text-[12px] text-rose-600/80 leading-relaxed flex gap-2.5">
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 opacity-60" />
-                          <span className="font-medium">{step.error_message}</span>
+                          <span className="font-medium">
+                            {step.error_message}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -227,13 +236,17 @@ export function RunDetail() {
             </h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between text-[12px]">
-                <span className="text-muted-foreground/70 font-medium">Started At</span>
+                <span className="text-muted-foreground/70 font-medium">
+                  Started At
+                </span>
                 <span className="font-semibold text-foreground/90">
                   {formatDate(run.started_at)}
                 </span>
               </div>
               <div className="flex items-center justify-between text-[12px]">
-                <span className="text-muted-foreground/70 font-medium">Finished At</span>
+                <span className="text-muted-foreground/70 font-medium">
+                  Finished At
+                </span>
                 <span className="font-semibold text-foreground/90">
                   {formatDate(run.finished_at)}
                 </span>
@@ -247,7 +260,9 @@ export function RunDetail() {
             </h3>
             <div className="p-3 rounded-lg bg-muted/5 border border-border/20 flex items-center justify-between group">
               <div className="min-w-0">
-                <p className="text-[8px] font-bold text-muted-foreground/50 uppercase tracking-widest mb-1">Execution ID</p>
+                <p className="text-[8px] font-bold text-muted-foreground/50 uppercase tracking-widest mb-1">
+                  Execution ID
+                </p>
                 <p className="text-[10px] font-mono text-muted-foreground/70 truncate">
                   {run.id}
                 </p>
@@ -266,7 +281,9 @@ export function RunDetail() {
             <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-5 space-y-3">
               <div className="flex items-center gap-2 text-rose-500/70">
                 <AlertTriangle className="h-4 w-4" />
-                <h3 className="text-[12px] font-bold uppercase tracking-wider">Critical Failure</h3>
+                <h3 className="text-[12px] font-bold uppercase tracking-wider">
+                  Critical Failure
+                </h3>
               </div>
               <p className="text-[12px] text-rose-600/80 leading-relaxed font-medium italic">
                 "{run.error_message}"

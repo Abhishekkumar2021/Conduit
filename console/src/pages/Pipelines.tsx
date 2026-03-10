@@ -1,4 +1,5 @@
-import { Link, useNavigate } from "react-router-dom";
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   GitBranch,
@@ -33,8 +34,9 @@ import {
   TableRow,
 } from "@/components/ui/Table";
 import { PIPELINE_STATUS } from "@/lib/constants";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
+import { useQueryAction } from "@/hooks/useQueryAction";
 import {
   usePipelines,
   useCreatePipeline,
@@ -48,19 +50,156 @@ const RUN_STATUS_ICON = {
   succeeded: (
     <CheckCircle2 className="h-4 w-4 text-emerald-500" strokeWidth={2.5} />
   ),
-  failed: (
-    <AlertTriangle className="h-4 w-4 text-rose-500" strokeWidth={2.5} />
-  ),
+  failed: <AlertTriangle className="h-4 w-4 text-rose-500" strokeWidth={2.5} />,
   running: (
-    <Loader2
-      className="h-4 w-4 animate-spin text-primary"
-      strokeWidth={2.5}
-    />
+    <Loader2 className="h-4 w-4 animate-spin text-primary" strokeWidth={2.5} />
   ),
   pending: (
     <Clock className="h-4 w-4 text-muted-foreground/60" strokeWidth={2.5} />
   ),
 };
+
+/* ─── Pipeline Dialog Sub-component ───────────────────────────── */
+
+interface PipelineDialogProps {
+  pipeline: Pipeline | null;
+  onClose: () => void;
+  workspaceId: string;
+}
+
+function PipelineDialog({
+  pipeline,
+  onClose,
+  workspaceId,
+}: PipelineDialogProps) {
+  const navigate = useNavigate();
+  const { mutate: createPipeline, isPending: isCreating } =
+    useCreatePipeline(workspaceId);
+  const { mutate: updatePipeline, isPending: isUpdating } =
+    useUpdatePipeline(workspaceId);
+
+  const [formState, setFormState] = useState({
+    name: pipeline?.name ?? "",
+    description: pipeline?.description ?? "",
+  });
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workspaceId || !formState.name.trim()) return;
+
+    if (pipeline) {
+      updatePipeline(
+        {
+          id: pipeline.id,
+          data: {
+            name: formState.name.trim(),
+            description: formState.description.trim(),
+          },
+        },
+        { onSuccess: onClose },
+      );
+    } else {
+      createPipeline(
+        {
+          name: formState.name.trim(),
+          description: formState.description.trim(),
+        },
+        {
+          onSuccess: (newPipe) => {
+            onClose();
+            navigate(`/pipelines/${newPipe.id}`);
+          },
+        },
+      );
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-background/50 backdrop-blur-md animate-in fade-in duration-300"
+        onClick={onClose}
+      />
+      <div className="relative w-full max-w-lg bg-card shadow-2xl rounded-2xl border border-border/50 p-7 sm:p-10 animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between mb-6">
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
+              {pipeline ? "Edit Pipeline" : "New Pipeline"}
+            </h2>
+            <p className="text-[12px] text-muted-foreground/50 font-medium">
+              Define your data workflow parameters
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full p-2 text-muted-foreground/60 hover:bg-muted/50 hover:text-foreground transition-all"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="space-y-2">
+            <label
+              htmlFor="pipeline-name"
+              className="text-[13px] font-bold text-foreground/80 ml-1 tracking-tight"
+            >
+              Pipeline Name
+            </label>
+            <Input
+              id="pipeline-name"
+              type="text"
+              placeholder="e.g., Warehouse Sync"
+              value={formState.name}
+              onChange={(e) =>
+                setFormState((prev) => ({ ...prev, name: e.target.value }))
+              }
+              autoFocus
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="pipeline-desc"
+              className="text-[13px] font-bold text-foreground/80 ml-1 tracking-tight"
+            >
+              Description
+            </label>
+            <Textarea
+              id="pipeline-desc"
+              placeholder="What is the purpose of this pipeline?"
+              value={formState.description}
+              onChange={(e) =>
+                setFormState((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+              className="min-h-[100px] resize-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-4 pt-4">
+            <Button
+              type="submit"
+              variant="primary"
+              className="h-11 w-full text-[14px] font-bold shadow-lg shadow-primary/10"
+              disabled={isCreating || isUpdating || !formState.name.trim()}
+            >
+              {isCreating || isUpdating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              {pipeline ? "Save Changes" : "Create Pipeline"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Main Component ─────────────────────────────────────────── */
 
 export function Pipelines() {
   const { data: workspaces } = useWorkspaces();
@@ -70,61 +209,32 @@ export function Pipelines() {
   const { data: pipelines, isLoading: isPipelinesLoading } =
     usePipelines(workspaceId);
   const { data: runs } = useRuns(workspaceId);
-  const { mutate: createPipeline, isPending: isCreating } =
-    useCreatePipeline(workspaceId);
-  const { mutate: updatePipeline, isPending: isUpdating } =
-    useUpdatePipeline(workspaceId);
   const { mutate: deletePipeline } = useDeletePipeline(workspaceId);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPipeline, setEditingPipeline] = useState<Pipeline | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const { action, getParam, setParams, clearParams } = useQueryAction();
+  const editId = getParam("id");
 
-  const handleSavePipeline = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!workspaceId || !name.trim()) return;
-
-    if (editingPipeline) {
-      updatePipeline(
-        {
-          id: editingPipeline.id,
-          data: { name: name.trim(), description: description.trim() },
-        },
-        {
-          onSuccess: () => {
-            setIsModalOpen(false);
-            setEditingPipeline(null);
-            setName("");
-            setDescription("");
-          },
-        },
-      );
-    } else {
-      createPipeline(
-        {
-          name: name.trim(),
-          description: description.trim(),
-        },
-        {
-          onSuccess: (newPipe) => {
-            setIsModalOpen(false);
-            setName("");
-            setDescription("");
-            navigate(`/pipelines/${newPipe.id}`);
-          },
-        },
-      );
+  // Derive target pipeline for editing
+  const editingPipeline = useMemo(() => {
+    if (action === "edit" && editId && pipelines) {
+      return pipelines.find((p) => p.id === editId) || null;
     }
+    return null;
+  }, [action, editId, pipelines]);
+
+  const isModalOpen = action === "create" || (action === "edit" && !!editId);
+
+  const closeModal = () => {
+    clearParams(["action", "id"]);
+  };
+
+  const openCreateModal = () => {
+    setParams({ action: "create", id: null });
   };
 
   const openEditMode = (e: React.MouseEvent, pipe: Pipeline) => {
     e.preventDefault();
-    e.stopPropagation();
-    setEditingPipeline(pipe);
-    setName(pipe.name);
-    setDescription(pipe.description || "");
-    setIsModalOpen(true);
+    setParams({ action: "edit", id: pipe.id });
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
@@ -149,16 +259,7 @@ export function Pipelines() {
         title="Pipelines"
         description="Manage your data pipelines and DAGs"
         actions={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setEditingPipeline(null);
-              setName("");
-              setDescription("");
-              setIsModalOpen(true);
-            }}
-          >
+          <Button variant="primary" size="sm" onClick={openCreateModal}>
             <Plus className="h-3.5 w-3.5" />
             New Pipeline
           </Button>
@@ -198,7 +299,9 @@ export function Pipelines() {
                     PIPELINE_STATUS.draft;
                   const latestRun = latestRunByPipeline.get(pipe.id);
                   const lastRunStatus = latestRun?.status || "pending";
-                  const lastRunLabel = latestRun ? latestRun.trigger_type : "Never";
+                  const lastRunLabel = latestRun
+                    ? latestRun.trigger_type
+                    : "Never";
 
                   return (
                     <TableRow
@@ -260,8 +363,13 @@ export function Pipelines() {
                               <MoreHorizontal className="h-4 w-4 text-muted-foreground/60" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="rounded-xl">
-                            <DropdownMenuItem onClick={(e) => openEditMode(e, pipe)}>
+                          <DropdownMenuContent
+                            align="end"
+                            className="rounded-xl"
+                          >
+                            <DropdownMenuItem
+                              onClick={(e) => openEditMode(e, pipe)}
+                            >
                               <Pencil className="h-3.5 w-3.5 mr-2" />
                               Edit Details
                             </DropdownMenuItem>
@@ -285,88 +393,13 @@ export function Pipelines() {
         )}
       </div>
 
-      {/* Create/Edit Pipeline Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-background/50 backdrop-blur-md animate-in fade-in duration-300"
-            onClick={() => {
-              setIsModalOpen(false);
-              setEditingPipeline(null);
-            }}
-          />
-          <div className="relative w-full max-w-lg bg-card shadow-2xl rounded-2xl border border-border/50 p-7 sm:p-10 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-6">
-              <div className="space-y-1">
-                <h2 className="text-xl font-bold tracking-tight text-foreground">
-                  {editingPipeline ? "Edit Pipeline" : "New Pipeline"}
-                </h2>
-                <p className="text-[12px] text-muted-foreground/50 font-medium">
-                  Define your data workflow parameters
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setEditingPipeline(null);
-                }}
-                className="rounded-full p-2 text-muted-foreground/60 hover:bg-muted/50 hover:text-foreground transition-all"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSavePipeline} className="space-y-6">
-              <div className="space-y-2">
-                <label
-                  htmlFor="pipeline-name"
-                  className="text-[13px] font-bold text-foreground/80 ml-1 tracking-tight"
-                >
-                  Pipeline Name
-                </label>
-                <Input
-                  id="pipeline-name"
-                  type="text"
-                  placeholder="e.g., Warehouse Sync"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoFocus
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label
-                  htmlFor="pipeline-desc"
-                  className="text-[13px] font-bold text-foreground/80 ml-1 tracking-tight"
-                >
-                  Description
-                </label>
-                <Textarea
-                  id="pipeline-desc"
-                  placeholder="What is the purpose of this pipeline?"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="min-h-[100px] resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-4 pt-4">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  className="h-11 w-full text-[14px] font-bold shadow-lg shadow-primary/10"
-                  disabled={isCreating || isUpdating || !name.trim()}
-                >
-                  {isCreating || isUpdating ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : null}
-                  {editingPipeline ? "Save Changes" : "Create Pipeline"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <PipelineDialog
+          key={action === "edit" ? editId : "create"}
+          pipeline={editingPipeline}
+          onClose={closeModal}
+          workspaceId={workspaceId}
+        />
       )}
     </div>
   );
