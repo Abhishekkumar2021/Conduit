@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Plug2, Shield, Lock, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
@@ -204,18 +205,37 @@ export function IntegrationDialog({
                       <div className="h-px bg-border/20 flex-1" />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       {selectedAdapter.vault_fields.map((spec) => {
                         const field = parseFieldSpec(spec);
                         return (
-                          <div key={field.name} className="space-y-2">
+                          <div
+                            key={field.name}
+                            className={cn(
+                              "space-y-2",
+                              [
+                                "host",
+                                "password",
+                                "database",
+                                "token",
+                                "key",
+                                "instance_url",
+                                "client_secret",
+                                "security_token",
+                              ].some((k) =>
+                                field.name.toLowerCase().includes(k),
+                              )
+                                ? "col-span-2"
+                                : "col-span-1",
+                            )}
+                          >
                             <label className="text-[10px] font-bold text-muted-foreground/60 px-1 flex items-center justify-between tracking-widest uppercase">
                               <span className="capitalize tracking-normal">
                                 {field.name.replace(/_/g, " ")}
                               </span>
                               {field.isSecret && (
                                 <span className="text-[8px] font-bold uppercase text-emerald-600/60 tracking-wider">
-                                  Encrypted
+                                  Vault
                                 </span>
                               )}
                             </label>
@@ -235,7 +255,7 @@ export function IntegrationDialog({
                                 }
                                 className={cn(
                                   "font-mono text-[13px] tracking-tight",
-                                  field.isSecret ? "pr-10" : ""
+                                  field.isSecret ? "pr-10" : "",
                                 )}
                                 value={configValues[field.name] || ""}
                                 onChange={(e) =>
@@ -278,11 +298,7 @@ export function IntegrationDialog({
                   className="h-9 px-6 text-[12px] font-bold shadow-lg shadow-primary/10"
                   disabled={isSaving || !name.trim()}
                 >
-                  {isSaving
-                    ? "Saving..."
-                    : isEditMode
-                      ? "Update"
-                      : "Create"}
+                  {isSaving ? "Saving..." : isEditMode ? "Update" : "Create"}
                 </Button>
               </div>
             </form>

@@ -203,9 +203,8 @@ export function Integrations() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[300px]">Integration</TableHead>
+                  <TableHead>Integration</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Health</TableHead>
                   <TableHead>Last Sync</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -214,8 +213,9 @@ export function Integrations() {
                 {integrations.map((int) => {
                   const status = int.status || "healthy";
                   const st =
-                    INTEGRATION_STATUS[status as keyof typeof INTEGRATION_STATUS] ||
-                    INTEGRATION_STATUS.healthy;
+                    INTEGRATION_STATUS[
+                      status as keyof typeof INTEGRATION_STATUS
+                    ] || INTEGRATION_STATUS.healthy;
                   const uiProvider =
                     ADAPTER_UI_MAP[int.adapter_type] || DEFAULT_ADAPTER;
                   const IconComponent = uiProvider.icon;
@@ -224,10 +224,11 @@ export function Integrations() {
                     <TableRow key={int.id} className="group">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`flex h-9 w-9 items-center justify-center rounded-lg bg-linear-to-br ${uiProvider.color} border border-white/10 shrink-0 shadow-sm`}
-                          >
-                            <IconComponent className="h-4.5 w-4.5 text-white" strokeWidth={2.5} />
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/5 border border-primary/10 shrink-0">
+                            <IconComponent
+                              className="h-4.5 w-4.5 text-primary/60"
+                              strokeWidth={2.5}
+                            />
                           </div>
                           <div>
                             <h3 className="font-semibold text-foreground tracking-tight">
@@ -240,27 +241,17 @@ export function Integrations() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={st.variant}
-                          dot
-                          className="px-1.5 py-0 h-4 text-[10px] font-bold rounded-md bg-transparent border-none text-muted-foreground/70"
-                        >
-                          {st.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 font-semibold text-[12px]">
-                          {status === "healthy" ? (
-                            <>
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                              <span className="text-emerald-600/80 dark:text-emerald-500/80">Active</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="w-2 h-2 rounded-full bg-rose-500" />
-                              <span className="text-rose-600/80 dark:text-rose-500/80">Inactive</span>
-                            </>
-                          )}
+                        <div className="flex items-center gap-2 text-[12px] font-semibold">
+                          <span
+                            className={`w-2 h-2 rounded-full ${status === "healthy" ? "bg-emerald-500" : "bg-rose-500"}`}
+                          />
+                          <Badge
+                            variant={st.variant}
+                            dot={false}
+                            className="px-1.5 py-0 h-4 text-[10px] font-bold rounded-md bg-transparent border-none text-muted-foreground/70"
+                          >
+                            {st.label}
+                          </Badge>
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground tabular-nums">
@@ -275,7 +266,10 @@ export function Integrations() {
                             size="sm"
                             className="h-8 text-[11px] font-semibold text-muted-foreground/70 hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity bg-muted/20 hover:bg-muted/50"
                             onClick={() =>
-                              setSelectedDrawerIntegration({ id: int.id, name: int.name })
+                              setSelectedDrawerIntegration({
+                                id: int.id,
+                                name: int.name,
+                              })
                             }
                           >
                             <Database className="h-3.5 w-3.5 mr-1.5 opacity-70" />
@@ -291,8 +285,13 @@ export function Integrations() {
                                 <MoreHorizontal className="h-4 w-4 text-muted-foreground/60" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="rounded-xl">
-                              <DropdownMenuItem onClick={() => openEditMode(int)}>
+                            <DropdownMenuContent
+                              align="end"
+                              className="rounded-xl"
+                            >
+                              <DropdownMenuItem
+                                onClick={() => openEditMode(int)}
+                              >
                                 <Pencil className="h-3.5 w-3.5 mr-2" />
                                 Edit Settings
                               </DropdownMenuItem>

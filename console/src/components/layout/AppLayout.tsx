@@ -6,11 +6,11 @@ import {
   Plug,
   Play,
   Zap,
-  ChevronRight,
   Menu,
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { to: "/pipelines", label: "Pipelines", icon: GitBranch },
   { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/runs", label: "Runs", icon: Play },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 /* ─── Logo ──────────────────────────────────────────────────── */
@@ -162,7 +163,7 @@ function DesktopSidebar({
   return (
     <aside
       className={cn(
-        "hidden md:flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-300 ease-[cubic-bezier(0.2,0,0,1)] relative",
+        "hidden md:flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar backdrop-blur-xl transition-[width] duration-300 ease-[cubic-bezier(0.2,0,0,1)] relative z-30",
         collapsed ? "w-[64px]" : "w-[220px]",
       )}
     >
@@ -171,7 +172,7 @@ function DesktopSidebar({
       {/* Collapse Toggle Button */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-6 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm transition-all"
+        className="absolute -right-3 top-6 z-100 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm transition-all"
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         {collapsed ? (

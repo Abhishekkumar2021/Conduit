@@ -53,6 +53,10 @@ export const ADAPTER_UI_MAP: Record<
     color:
       "from-emerald-400/20 to-teal-500/20 text-emerald-600 dark:text-emerald-400",
   },
+  salesforce: {
+    icon: Cloud,
+    color: "from-sky-400/20 to-blue-500/20 text-sky-600 dark:text-sky-400",
+  },
 };
 
 export const DEFAULT_ADAPTER = {

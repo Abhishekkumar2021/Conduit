@@ -4,11 +4,11 @@ import {
   Activity,
   Search,
   Clock,
+  XCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Input } from "@/components/ui/Input";
 import {
@@ -100,35 +100,31 @@ export function Runs() {
         description="Execution history across all pipelines"
       />
 
-      <div className="mt-6 flex items-center justify-between gap-4">
-        <div className="flex flex-1 items-center gap-3 overflow-x-auto pb-1 custom-scrollbar">
-          {/* Search */}
-          <div className="relative shrink-0 w-[240px] sm:w-[320px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/30" />
-            <Input
-              id="runs-search"
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search runs..."
-              className="pl-9"
-            />
-          </div>
+      {/* ── Filter Bar ─────────────────────────────────────── */}
+      <div className="mt-6 flex items-center gap-2">
+        <div className="relative" style={{ width: 200 }}>
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/30" />
+          <Input
+            id="runs-search"
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search runs..."
+            className="pl-9 h-9 text-[12px]"
+          />
+        </div>
 
-          {/* Status */}
+        <div style={{ width: 120 }}>
           <Select
             value={statusFilter || "all"}
             onValueChange={(value) =>
               setStatusFilter(value === "all" ? "" : (value as RunStatusFilter))
             }
           >
-            <SelectTrigger
-              id="runs-status"
-              className="h-9 w-[130px] shrink-0 rounded-xl bg-muted/5 border-border/50 px-3 text-xs font-semibold text-foreground/70 focus:ring-2 focus:ring-primary/5 focus:border-primary/50"
-            >
+            <SelectTrigger id="runs-status" className="h-9 text-[12px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
-            <SelectContent className="rounded-xl border-border/40 shadow-xl">
+            <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="running">Running</SelectItem>
@@ -137,8 +133,9 @@ export function Runs() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+        </div>
 
-          {/* Trigger */}
+        <div style={{ width: 120 }}>
           <Select
             value={triggerFilter || "all"}
             onValueChange={(value) =>
@@ -147,34 +144,30 @@ export function Runs() {
               )
             }
           >
-            <SelectTrigger
-              id="runs-trigger"
-              className="h-9 w-[130px] shrink-0 rounded-xl bg-muted/5 border-border/50 px-3 text-xs font-semibold text-foreground/70 focus:ring-2 focus:ring-primary/5 focus:border-primary/50"
-            >
+            <SelectTrigger id="runs-trigger" className="h-9 text-[12px]">
               <SelectValue placeholder="Trigger" />
             </SelectTrigger>
-            <SelectContent className="rounded-xl border-border/40 shadow-xl">
+            <SelectContent>
               <SelectItem value="all">All Trigger</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
               <SelectItem value="schedule">Schedule</SelectItem>
               <SelectItem value="api">API</SelectItem>
             </SelectContent>
           </Select>
-
-          {/* Reset */}
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetFilters}
-              className="h-9 px-3 shrink-0 text-[11px] font-bold text-muted-foreground/60 hover:text-foreground"
-            >
-              Reset
-            </Button>
-          )}
         </div>
+
+        {hasActiveFilters && (
+          <button
+            onClick={resetFilters}
+            className="ml-1 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground/50 hover:text-foreground transition-colors"
+          >
+            <XCircle className="h-3.5 w-3.5" />
+            Clear
+          </button>
+        )}
       </div>
 
+      {/* ── Summary ────────────────────────────────────────── */}
       <div className="mt-4 flex items-center gap-4 px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/40">
         {isRunsLoading ? (
           <Skeleton className="h-4 w-[200px] rounded-full" />
@@ -193,7 +186,7 @@ export function Runs() {
         )}
       </div>
 
-      {/* Table */}
+      {/* ── Table ──────────────────────────────────────────── */}
       <div className="mt-6">
         {isRunsLoading ? (
           <div className="space-y-2">
@@ -230,7 +223,7 @@ export function Runs() {
                   <TableRow
                     key={run.id}
                     onClick={() => navigate(`/runs/${run.id}`)}
-                    className="cursor-pointer"
+                    className="cursor-pointer group"
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -255,10 +248,10 @@ export function Runs() {
                         </Badge>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono text-muted-foreground">
+                    <TableCell className="font-mono text-muted-foreground tabular-nums">
                       #{run.id.slice(0, 8)}
                     </TableCell>
-                    <TableCell className="font-semibold text-foreground/90">
+                    <TableCell className="font-semibold text-foreground/90 group-hover:text-primary transition-colors">
                       {pName}
                     </TableCell>
                     <TableCell className="uppercase text-[11px] text-muted-foreground/80 font-semibold tracking-wider">

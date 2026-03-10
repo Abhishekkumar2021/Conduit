@@ -9,6 +9,7 @@ import { PipelineDetail } from "@/pages/PipelineDetail";
 import { Integrations } from "@/pages/Integrations";
 import { Runs } from "@/pages/Runs";
 import { RunDetail } from "@/pages/RunDetail";
+import { Settings } from "@/pages/Settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +31,7 @@ export default function App() {
               <Route path="integrations" element={<Integrations />} />
               <Route path="runs" element={<Runs />} />
               <Route path="runs/:id" element={<RunDetail />} />
+              <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>
         </BrowserRouter>
