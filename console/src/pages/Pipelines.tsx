@@ -35,6 +35,17 @@ import {
 } from "@/components/ui/Table";
 import { PIPELINE_STATUS } from "@/lib/constants";
 import { useState, useMemo } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/AlertDialog";
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
 import { useQueryAction } from "@/hooks/useQueryAction";
 import {
@@ -237,14 +248,6 @@ export function Pipelines() {
     setParams({ action: "edit", id: pipe.id });
   };
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (window.confirm("Are you sure you want to delete this pipeline?")) {
-      deletePipeline(id);
-    }
-  };
-
   // Group latest run by pipeline
   const latestRunByPipeline = new Map<string, Run>();
   runs?.forEach((r) => {
@@ -374,13 +377,38 @@ export function Pipelines() {
                               Edit Details
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="danger"
-                              onClick={(e) => handleDelete(e, pipe.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-2" />
-                              Delete Pipeline
-                            </DropdownMenuItem>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  variant="danger"
+                                  onSelect={(e) => e.preventDefault()}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                  Delete Pipeline
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Delete pipeline?
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete the "
+                                    {pipe.name}" pipeline and all its execution
+                                    history. This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    variant="danger"
+                                    onClick={() => deletePipeline(pipe.id)}
+                                  >
+                                    Delete Pipeline
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

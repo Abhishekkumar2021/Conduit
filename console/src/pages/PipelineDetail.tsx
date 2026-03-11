@@ -154,6 +154,11 @@ export function PipelineDetail() {
     [],
   );
 
+  const handleDeleteNode = useCallback((id: string) => {
+    setNodes((nds) => nds.filter((n) => n.id !== id));
+    setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+  }, []);
+
   const selectedNode = nodes.find((n) => n.selected);
 
   const handleSave = () => {
@@ -184,7 +189,7 @@ export function PipelineDetail() {
       stages: nodes.map((n) => ({
         key: n.id,
         label: n.data.label as string,
-        kind: n.data.kind as "extract" | "transform" | "load" | "gate",
+        kind: n.data.kind as "extract" | "processor" | "load" | "gate",
         position_x: n.position.x,
         position_y: n.position.y,
         config: ((n.data.config as Record<string, unknown>) || {}) as Record<
@@ -472,7 +477,7 @@ export function PipelineDetail() {
                 <h2 className="text-sm font-semibold">Empty Pipeline</h2>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                   This pipeline has no stages yet. Open the builder to add
-                  sources, transforms, and destinations.
+                  sources, processors, and destinations.
                 </p>
                 <Button
                   variant="primary"
@@ -494,6 +499,7 @@ export function PipelineDetail() {
               key={selectedNode.id}
               node={selectedNode}
               onUpdate={handleUpdateNode}
+              onDelete={handleDeleteNode}
               onClose={() => {
                 // Deselect via React Flow changes
                 setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));

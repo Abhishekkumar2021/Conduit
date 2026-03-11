@@ -97,8 +97,9 @@ def test_handle_load_requires_inputs_stream_and_integration():
         runner._handle_load(missing_integration)
 
 
-def test_apply_logic_passthrough():
-    node = Node(id="t1", key="t1", label="T", kind="transform")
+def test_apply_processor_passthrough_for_unknown_type():
+    node = Node(id="t1", key="t1", label="T", kind="unknown_transform")
     runner = LocalRunner(graph=Graph(nodes=[node], edges=[]), integration_configs={})
     batch = [{"id": 1}]
-    assert runner._apply_logic(node, batch) == batch
+    assert runner._apply_processor(node, batch) == batch
+

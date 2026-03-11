@@ -116,9 +116,9 @@ def test_runner_with_transform():
     mock_adapter.write.return_value = 2
     mock_adapter.session.return_value.__enter__.return_value = mock_adapter
 
-    # Patch apply_logic to double the values
-    with patch("conduit.engine.core.runner.LocalRunner._apply_logic") as mock_logic:
-        mock_logic.side_effect = lambda node, batch: [
+    # Patch _apply_processor to double the values
+    with patch("conduit.engine.core.runner.LocalRunner._apply_processor") as mock_proc:
+        mock_proc.side_effect = lambda node, batch: [
             {"val": r["val"] * 2} for r in batch
         ]
         with patch(
@@ -131,3 +131,4 @@ def test_runner_with_transform():
             # Verify write was called with doubled values
             args, kwargs = mock_adapter.write.call_args
             assert args[1] == [{"val": 20}, {"val": 40}]
+

@@ -9,6 +9,7 @@ from typing import Any, Dict, Generator, List, Optional
 
 from conduit.engine.adapters.registry import AdapterRegistry
 from conduit.engine.core.graph import Graph, Node
+from conduit.engine.processors.registry import ProcessorRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ DataStream = Generator[List[Dict[str, Any]], None, None]
 class LocalRunner:
     """
     Executes a pipeline graph on the local machine.
-    Orchestrates the flow of data batches from sources through transforms to targets.
+    Orchestrates the flow of data batches from sources through processors to targets.
 
     All adapter I/O is synchronous (generators). The runner itself is synchronous
     to match — no false async wrappers.
@@ -36,6 +37,9 @@ class LocalRunner:
         self.run_id = run_id
         self._streams: Dict[str, DataStream] = {}
         self._active_sessions: List[Any] = []
+
+        # Ensure processors are discovered at runner init
+        ProcessorRegistry.discover()
 
     def run(self) -> Dict[str, Any]:
         """
@@ -56,13 +60,13 @@ class LocalRunner:
                 )
 
                 # Normalize node kind for routing
-                base_kind = (
-                    node.kind.split("_")[-1]
-                )  # e.g. postgresql_extract -> extract
+                base_kind = node.kind.split("_")[
+                    -1
+                ]  # e.g. postgresql_extract -> extract
 
                 if base_kind == "extract":
                     self._handle_extract(node)
-                elif base_kind == "transform":
+                elif base_kind in ("transform", "processor"):
                     self._handle_transform(node)
                 elif base_kind == "load":
                     self._handle_load(node)
@@ -110,7 +114,7 @@ class LocalRunner:
         self._streams[node.id] = stream
 
     def _handle_transform(self, node: Node) -> None:
-        """Wrap input streams with transformation logic."""
+        """Wrap input streams with processor logic."""
         if not node.inputs:
             raise ValueError(f"Transform node {node.label} has no inputs")
 
@@ -122,7 +126,7 @@ class LocalRunner:
 
         def transform_wrapper(upstream: DataStream) -> DataStream:
             for batch in upstream:
-                processed_batch = self._apply_logic(node, batch)
+                processed_batch = self._apply_processor(node, batch)
                 yield processed_batch
 
         self._streams[node.id] = transform_wrapper(input_stream)
@@ -158,8 +162,37 @@ class LocalRunner:
             total_records += count
             logger.debug("Loaded %d records. Total: %d", count, total_records)
 
-    def _apply_logic(
+    def _apply_processor(
         self, node: Node, batch: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Static logic application (placeholder for TransformRegistry)."""
-        return batch
+        """
+        Apply a registered processor to a batch of records.
+
+        Processor type is extracted from node.kind:
+          - "filter_transform" or "filter_processor" → "filter"
+          - "filter" → "filter"
+        Config is read from node.config.
+        """
+        # Extract processor type from node kind
+        # Support formats: "filter", "filter_transform", "filter_processor"
+        kind = node.kind
+        processor_type = kind.split("_")[0]  # e.g. "filter_transform" → "filter"
+
+        try:
+            proc = ProcessorRegistry.create(processor_type, node.config)
+            result = proc.process(batch)
+            logger.info(
+                "Processor '%s' on node '%s': %d → %d records",
+                processor_type,
+                node.label,
+                len(batch),
+                len(result),
+            )
+            return result
+        except KeyError:
+            logger.warning(
+                "Unknown processor type '%s' for node '%s'. Passing data through.",
+                processor_type,
+                node.label,
+            )
+            return batch

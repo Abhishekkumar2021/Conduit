@@ -27,7 +27,7 @@ export interface Stage {
   id: string;
   key: string;
   label: string;
-  kind: "extract" | "transform" | "load" | "gate";
+  kind: "extract" | "processor" | "load" | "gate";
   integration_id?: string;
   config: Record<string, string | number | boolean | null>;
   position_x: number;
@@ -116,7 +116,7 @@ export interface RunDetail {
 export interface StageCreate {
   key: string;
   label: string;
-  kind: "extract" | "transform" | "load" | "gate";
+  kind: "extract" | "processor" | "load" | "gate";
   integration_id?: string;
   config?: Record<string, string | number | boolean | null>;
   position_x: number;

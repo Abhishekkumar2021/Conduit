@@ -13,9 +13,9 @@ const NODE_TYPES = [
   },
   {
     type: "standard",
-    kind: "transform",
-    label: "Transform",
-    description: "Apply SQL or Python logic",
+    kind: "processor",
+    label: "Processor",
+    description: "Transform data with built-in processors",
     icon: Zap,
     color: "text-violet-500 bg-violet-500/10 border-violet-500/20",
   },
@@ -41,7 +41,7 @@ export function PipelineSidebar() {
   };
 
   return (
-    <aside className="w-56 shrink-0 border-l border-border/40 bg-card/40 backdrop-blur-sm p-4 h-full overflow-y-auto">
+    <aside className="w-72 shrink-0 border-l border-border/40 bg-card/40 backdrop-blur-sm p-4 h-full overflow-y-auto">
       <h3 className="text-[11px] font-bold text-muted-foreground/60 uppercase tracking-widest mb-4">
         Node Library
       </h3>

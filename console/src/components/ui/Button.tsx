@@ -1,42 +1,23 @@
-import type { ReactNode, ButtonHTMLAttributes } from "react";
-import { cn } from "@/lib/utils";
+/* eslint-disable react-refresh/only-export-components */
+import * as React from "react";
+import { buttonVariants, type ButtonVariant } from "@/lib/button-variants";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-
-const BUTTON_STYLES: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm",
-  secondary: "bg-card text-foreground border border-border hover:bg-accent",
-  ghost: "text-muted-foreground hover:bg-accent hover:text-foreground",
-  danger:
-    "bg-destructive/15 text-destructive hover:bg-destructive hover:text-destructive-foreground",
-};
-
-export function Button({
-  children,
-  variant = "primary",
-  size = "md",
-  className,
-  ...props
-}: {
-  children: ReactNode;
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: "sm" | "md";
-  className?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-xl font-bold transition-all duration-150 tracking-tight focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30",
-        "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
-        size === "sm"
-          ? "h-8 px-3.5 text-[11px] uppercase tracking-wider"
-          : "h-10 px-5 text-[13px]",
-        BUTTON_STYLES[variant],
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </button>
-  );
 }
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = "primary", size = "md", ...props }, ref) => {
+    return (
+      <button
+        className={buttonVariants({ variant, size, className })}
+        ref={ref}
+        {...props}
+      />
+    );
+  },
+);
+Button.displayName = "Button";
+
+export { Button, buttonVariants, type ButtonVariant };
