@@ -9,6 +9,7 @@ import {
   Plus,
   Plug,
   Command as CommandIcon,
+  ArrowRight,
 } from "lucide-react";
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
 import { usePipelines } from "@/hooks/queries/usePipelines";
@@ -50,7 +51,7 @@ export function CommandCenter() {
   const { data: pipelines } = usePipelines(workspaceId);
   const { data: integrations } = useIntegrations(workspaceId);
 
-  /* ─── Logic: Keyboard Shortcuts ───────────────────────────── */
+  /* ─── Keyboard Shortcuts ──────────────────────────────────── */
 
   useEffect(() => {
     const openCenter = () => {
@@ -62,11 +63,8 @@ export function CommandCenter() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        if (!isOpen) {
-          openCenter();
-        } else {
-          setIsOpen(false);
-        }
+        if (!isOpen) openCenter();
+        else setIsOpen(false);
       }
       if (e.key === "Escape" && isOpen) {
         e.preventDefault();
@@ -87,12 +85,10 @@ export function CommandCenter() {
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 10);
-    }
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 10);
   }, [isOpen]);
 
-  /* ─── Logic: Command List Building ────────────────────────── */
+  /* ─── Command List ────────────────────────────────────────── */
 
   const commands = useMemo(() => {
     const items: Command[] = [
@@ -144,7 +140,7 @@ export function CommandCenter() {
       {
         id: "act-new-pipeline",
         label: "Create New Pipeline",
-        description: "Open the creation builder",
+        description: "Open the pipeline builder",
         category: "Actions",
         icon: Plus,
         action: () => navigate("/pipelines?action=create"),
@@ -160,20 +156,20 @@ export function CommandCenter() {
     ];
 
     if (pipelines && Array.isArray(pipelines)) {
-      pipelines.forEach((p) => {
+      pipelines.forEach((p) =>
         items.push({
           id: `pipe-${p.id}`,
           label: p.name,
-          description: "Jump to Pipeline",
+          description: "Open pipeline",
           category: "Pipelines",
           icon: GitBranch,
           action: () => navigate(`/pipelines/${p.id}`),
-        });
-      });
+        }),
+      );
     }
 
     if (integrations && Array.isArray(integrations)) {
-      integrations.forEach((i) => {
+      integrations.forEach((i) =>
         items.push({
           id: `int-${i.id}`,
           label: i.name,
@@ -181,18 +177,17 @@ export function CommandCenter() {
           category: "Integrations",
           icon: Plug,
           action: () => navigate("/integrations"),
-        });
-      });
+        }),
+      );
     }
 
     return items;
   }, [navigate, pipelines, integrations]);
 
-  /* ─── Logic: Filtering & Grouping ────────────────────────── */
+  /* ─── Filtering & Grouping ────────────────────────────────── */
 
   const filteredAndGrouped = useMemo(() => {
     const s = search.toLowerCase().trim();
-
     const filtered = s
       ? commands.filter(
           (c) =>
@@ -207,29 +202,24 @@ export function CommandCenter() {
     CATEGORIES.forEach((cat) => {
       grouped[cat] = filtered.filter((c) => c.category === cat);
     });
-
     return grouped;
   }, [search, commands]);
 
-  const flattenedItems = useMemo(() => {
-    return CATEGORIES.flatMap((cat) => filteredAndGrouped[cat]);
-  }, [filteredAndGrouped]);
+  const flattenedItems = useMemo(
+    () => CATEGORIES.flatMap((cat) => filteredAndGrouped[cat]),
+    [filteredAndGrouped],
+  );
 
   useEffect(() => {
     if (scrollRef.current && flattenedItems.length > 0) {
-      const selectedElement = scrollRef.current.querySelector(
+      const el = scrollRef.current.querySelector(
         `[data-index="${selectedIndex}"]`,
       ) as HTMLElement;
-      if (selectedElement) {
-        selectedElement.scrollIntoView({
-          block: "nearest",
-          behavior: "smooth",
-        });
-      }
+      el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
   }, [selectedIndex, flattenedItems]);
 
-  /* ─── Logic: Handlers ────────────────────────────────────── */
+  /* ─── Input Key Handler ───────────────────────────────────── */
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const len = flattenedItems.length;
@@ -237,10 +227,10 @@ export function CommandCenter() {
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % len);
+      setSelectedIndex((i) => (i + 1) % len);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSelectedIndex((prev) => (prev - 1 + len) % len);
+      setSelectedIndex((i) => (i - 1 + len) % len);
     } else if (e.key === "Enter" && flattenedItems[selectedIndex]) {
       e.preventDefault();
       flattenedItems[selectedIndex].action();
@@ -250,48 +240,54 @@ export function CommandCenter() {
 
   if (!isOpen) return null;
 
+  /* ─── Render ──────────────────────────────────────────────── */
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh]">
+    <div className="fixed inset-0 z-100 flex items-start justify-center pt-[14vh]">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-background/10 backdrop-blur-md animate-in fade-in duration-300"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
         onClick={() => setIsOpen(false)}
       />
 
-      <div className="relative w-full max-w-[600px] bg-popover/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-border/40 overflow-hidden animate-in zoom-in-95 slide-in-from-top-4 duration-200">
-        <div className="px-5 py-4 border-b border-border bg-muted/5">
-          <div className="relative flex items-center">
-            <Search
-              className="absolute left-0 h-5 w-5 text-muted-foreground/20"
-              strokeWidth={2.5}
-            />
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Search anything..."
-              className="w-full bg-transparent pl-8 pr-4 py-1 text-[18px] font-medium text-foreground placeholder:text-muted-foreground/20 border-none outline-none focus:ring-0"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setSelectedIndex(0);
-              }}
-              onKeyDown={handleKeyDown}
-              autoComplete="off"
-            />
-            <div className="flex items-center gap-1.5 ml-2">
-              <kbd className="h-5 px-1.5 flex items-center justify-center bg-muted/50 text-[10px] font-bold rounded border border-border text-muted-foreground/20">
-                ESC
-              </kbd>
-            </div>
-          </div>
+      {/* Modal */}
+      <div
+        className="relative w-full max-w-[560px] mx-4 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-2xl animate-in zoom-in-95 slide-in-from-top-2 duration-200"
+        style={{
+          boxShadow:
+            "0 25px 50px -12px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.05) inset",
+        }}
+      >
+        {/* Search */}
+        <div className="flex items-center gap-3 px-4 border-b border-border/60">
+          <Search className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Type a command or search..."
+            className="flex-1 bg-transparent py-3.5 text-[15px] text-foreground placeholder:text-muted-foreground/40 border-none outline-none"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setSelectedIndex(0);
+            }}
+            onKeyDown={handleKeyDown}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <kbd className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground/50 bg-muted/60 rounded border border-border/60">
+            ESC
+          </kbd>
         </div>
 
-        <div
-          ref={scrollRef}
-          className="max-h-[420px] overflow-y-auto p-2 custom-scrollbar"
-        >
+        {/* Results */}
+        <div ref={scrollRef} className="max-h-[380px] overflow-y-auto py-1.5">
           {flattenedItems.length === 0 ? (
-            <div className="py-20 text-center text-[13px] font-medium text-muted-foreground/30 italic">
-              No results for "{search}"
+            <div className="py-14 text-center">
+              <Search className="h-6 w-6 text-muted-foreground/20 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground/50">
+                No results for &ldquo;{search}&rdquo;
+              </p>
             </div>
           ) : (
             CATEGORIES.map((category, catIdx) => {
@@ -299,120 +295,103 @@ export function CommandCenter() {
               if (items.length === 0) return null;
 
               let startIdx = 0;
-              for (let i = 0; i < catIdx; i++) {
+              for (let i = 0; i < catIdx; i++)
                 startIdx += filteredAndGrouped[CATEGORIES[i]].length;
-              }
 
               return (
-                <div key={category} className="mb-2 last:mb-0">
-                  <div className="px-4 py-2">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30">
+                <div key={category}>
+                  {catIdx > 0 &&
+                    filteredAndGrouped[CATEGORIES[catIdx - 1]]?.length > 0 && (
+                      <div className="h-px bg-border/40 mx-3 my-1" />
+                    )}
+                  <div className="px-4 pt-2.5 pb-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-wider">
                       {category}
                     </span>
                   </div>
-                  <div className="space-y-0.5">
-                    {items.map((item, itemIdx) => {
-                      const globalIdx = startIdx + itemIdx;
-                      const isSelected = globalIdx === selectedIndex;
-                      const Icon = item.icon;
+                  {items.map((item, itemIdx) => {
+                    const globalIdx = startIdx + itemIdx;
+                    const isSelected = globalIdx === selectedIndex;
+                    const Icon = item.icon;
 
-                      return (
-                        <button
-                          key={item.id}
-                          data-index={globalIdx}
-                          onClick={() => {
-                            item.action();
-                            setIsOpen(false);
-                          }}
-                          onMouseEnter={() => setSelectedIndex(globalIdx)}
+                    return (
+                      <button
+                        key={item.id}
+                        data-index={globalIdx}
+                        onClick={() => {
+                          item.action();
+                          setIsOpen(false);
+                        }}
+                        onMouseEnter={() => setSelectedIndex(globalIdx)}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 mx-1.5 py-2 rounded-lg text-left transition-colors duration-75",
+                          isSelected
+                            ? "bg-primary/10 text-foreground"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                        style={{ width: "calc(100% - 12px)" }}
+                      >
+                        <div
                           className={cn(
-                            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-75 text-left relative",
+                            "shrink-0 h-8 w-8 rounded-md flex items-center justify-center transition-colors",
                             isSelected
-                              ? "bg-accent/80 text-foreground"
-                              : "text-muted-foreground hover:bg-muted/30 hover:text-foreground",
+                              ? "bg-primary/15 text-primary"
+                              : "bg-muted/50 text-muted-foreground/60",
                           )}
                         >
+                          <Icon className="h-4 w-4" />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
                           <div
                             className={cn(
-                              "shrink-0 h-8 w-8 rounded-lg flex items-center justify-center transition-colors",
+                              "text-[13px] font-semibold truncate",
                               isSelected
-                                ? "bg-background text-foreground/80 shadow-sm"
-                                : "text-muted-foreground/30",
+                                ? "text-foreground"
+                                : "text-foreground/80",
                             )}
                           >
-                            <Icon className="h-4 w-4" />
+                            {item.label}
                           </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className={cn(
-                                "text-[14px] font-bold tracking-tight truncate leading-tight",
-                                isSelected
-                                  ? "text-foreground"
-                                  : "text-foreground/80",
-                              )}
-                            >
-                              {item.label}
-                            </div>
-                            {item.description && (
-                              <div
-                                className={cn(
-                                  "text-[11px] font-medium mt-0.5 truncate leading-tight opacity-70",
-                                  isSelected
-                                    ? "text-foreground/80"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {item.description}
-                              </div>
-                            )}
-                          </div>
-
-                          {isSelected && (
-                            <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-right-1 duration-200 pr-1">
-                              <span className="text-[10px] font-extrabold text-muted-foreground/40">
-                                ↵
-                              </span>
+                          {item.description && (
+                            <div className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
+                              {item.description}
                             </div>
                           )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        </div>
+
+                        {isSelected && (
+                          <ArrowRight className="h-3.5 w-3.5 text-primary/60 shrink-0 animate-in fade-in slide-in-from-left-1 duration-150" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-border bg-muted/5 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground/30">
-              <div className="flex items-center gap-1">
-                <kbd className="flex items-center justify-center w-5 h-5 rounded border border-border/50 bg-muted/20 text-[10px] font-bold">
-                  ↑
-                </kbd>
-                <kbd className="flex items-center justify-center w-5 h-5 rounded border border-border/50 bg-muted/20 text-[10px] font-bold">
-                  ↓
-                </kbd>
-              </div>
-              <span className="uppercase tracking-widest text-[8px] font-bold">
-                Navigate
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground/30">
-              <kbd className="flex items-center justify-center px-1.5 h-5 rounded border border-border/50 bg-muted/20 text-[10px] font-bold">
-                ⏎
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-2 border-t border-border/40 bg-muted/20">
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
+              <kbd className="px-1 py-px rounded bg-muted/60 border border-border/50 text-[10px] font-mono font-semibold">
+                ↑↓
               </kbd>
-              <span className="uppercase tracking-widest text-[8px] font-bold">
-                Open
-              </span>
-            </div>
+              navigate
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
+              <kbd className="px-1 py-px rounded bg-muted/60 border border-border/50 text-[10px] font-mono font-semibold">
+                ↵
+              </kbd>
+              open
+            </span>
           </div>
-          <div className="flex items-center gap-2 text-[10px] font-bold tracking-widest text-muted-foreground/10 uppercase">
-            <CommandIcon className="h-3.5 w-3.5" />
-            <span>Search</span>
-          </div>
+          <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/30 uppercase tracking-wider">
+            <CommandIcon className="h-3 w-3" />
+            Conduit
+          </span>
         </div>
       </div>
     </div>
