@@ -140,6 +140,7 @@ export function PipelineDetail() {
             label: st.label,
             kind: st.kind,
             adapter: st.config?.adapter || "postgresql",
+            config: st.config || {},
           },
         })),
       );

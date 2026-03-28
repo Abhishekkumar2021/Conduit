@@ -799,7 +799,7 @@ function DataGrid({
             {sortedRecords.map((row, ri) => (
               <tr key={ri} className={cn("border-b border-border/40 hover:bg-accent/40 transition-colors", ri % 2 === 1 && "bg-muted/20")}>
                 <td
-                  className="sticky left-0 z-5 bg-card border-r border-border px-2 py-1.5 text-center text-[11px] text-muted-foreground/40 tabular-nums font-mono select-none"
+                  className={cn("sticky left-0 z-10 border-r border-border px-2 py-1.5 text-center text-[11px] text-muted-foreground/40 tabular-nums font-mono select-none", ri % 2 === 1 ? "bg-muted" : "bg-card")}
                   style={{ width: ROW_NUM_WIDTH, minWidth: ROW_NUM_WIDTH }}
                 >
                   {ri + 1}
@@ -819,8 +819,8 @@ function DataGrid({
                         "px-3 py-1.5 font-mono text-xs group/cell border-r border-border/20 last:border-r-0 overflow-hidden",
                         isNull ? "text-muted-foreground/30 italic" : COL_TYPE_META[ct].color,
                         ct === "number" && "tabular-nums text-right",
-                        pinned && "sticky z-5 bg-card",
-                        pinned && ri % 2 === 1 && "bg-muted/30",
+                        pinned && "sticky z-5",
+                        pinned && (ri % 2 === 1 ? "bg-muted" : "bg-card"),
                       )}
                       style={{
                         width: w,
