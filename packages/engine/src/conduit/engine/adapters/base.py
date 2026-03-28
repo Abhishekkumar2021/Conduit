@@ -7,10 +7,13 @@ This module also defines AdapterMeta served to the UI via the API.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Generator
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -53,9 +56,25 @@ class BaseAdapter(ABC):
             self.connect()
             self._connected = True
             yield self
+        except Exception:
+            logger.exception(
+                "Error in adapter session for %s", getattr(self, "meta", None) and self.meta.type
+            )
+            raise
         finally:
-            self.disconnect()
+            try:
+                self.disconnect()
+            except Exception:
+                logger.exception("Error during adapter disconnect")
             self._connected = False
+
+    def require_connected(self) -> None:
+        """Guard method — raises if adapter is not in a session."""
+        if not self._connected:
+            raise RuntimeError(
+                f"Adapter '{self.meta.type}' is not connected. "
+                "Use 'with adapter.session():' context manager."
+            )
 
     @abstractmethod
     def connect(self) -> None:

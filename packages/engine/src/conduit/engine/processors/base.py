@@ -97,4 +97,3 @@ def processor(
         return cls
 
     return decorator
-"""Conduit Engine — Processors package."""

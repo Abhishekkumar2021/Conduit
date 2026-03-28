@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Integration, Asset } from "@/types/api";
 
@@ -55,10 +56,11 @@ export function useCreateIntegration(workspaceId: string) {
       );
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (integration) => {
       queryClient.invalidateQueries({
         queryKey: integrationKeys.list(workspaceId),
       });
+      toast.success(`Integration "${integration.name}" created`);
     },
   });
 }
@@ -84,10 +86,11 @@ export function useUpdateIntegration(workspaceId: string) {
       );
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (integration) => {
       queryClient.invalidateQueries({
         queryKey: integrationKeys.list(workspaceId),
       });
+      toast.success(`Integration "${integration.name}" updated`);
     },
   });
 }
@@ -103,6 +106,7 @@ export function useDeleteIntegration(workspaceId: string) {
       queryClient.invalidateQueries({
         queryKey: integrationKeys.list(workspaceId),
       });
+      toast.success("Integration deleted");
     },
   });
 }
@@ -144,6 +148,7 @@ export function useDiscoverAssets(workspaceId: string) {
       queryClient.invalidateQueries({
         queryKey: integrationKeys.list(workspaceId),
       });
+      toast.success("Assets discovered successfully");
     },
   });
 }
@@ -166,6 +171,10 @@ export function useTestConnection() {
       queryClient.invalidateQueries({
         queryKey: integrationKeys.all,
       });
+      toast.success("Connection test passed");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Connection test failed");
     },
   });
 }

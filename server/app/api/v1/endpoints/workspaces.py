@@ -1,23 +1,27 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from app.api.dependencies.auth import get_current_user, get_optional_user
 from app.api.dependencies.services import get_workspace_service
+from app.infra.database.models import User
 from app.services.workspace import WorkspaceService
 
 router = APIRouter()
 
 
 class WorkspaceCreate(BaseModel):
-    name: str
-    slug: str
-    owner_id: UUID
+    name: str = Field(min_length=1, max_length=100)
+    slug: str = Field(min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9\-]*$")
+    owner_id: UUID | None = None
 
 
 class WorkspaceUpdate(BaseModel):
-    name: str | None = None
-    slug: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    slug: str | None = Field(
+        default=None, min_length=1, max_length=100, pattern=r"^[a-z0-9][a-z0-9\-]*$"
+    )
 
 
 class WorkspaceResponse(BaseModel):
@@ -32,14 +36,15 @@ class WorkspaceResponse(BaseModel):
 async def create_workspace(
     req: WorkspaceCreate,
     workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User | None = Depends(get_optional_user),
 ):
-    try:
-        workspace = await workspace_service.create_workspace(
-            name=req.name, slug=req.slug, owner_id=req.owner_id
-        )
-        return workspace
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    owner_id = req.owner_id or (user.id if user else None)
+    if not owner_id:
+        raise HTTPException(status_code=422, detail="owner_id is required")
+    workspace = await workspace_service.create_workspace(
+        name=req.name, slug=req.slug, owner_id=owner_id
+    )
+    return workspace
 
 
 @router.get("/{workspace_id}", response_model=WorkspaceResponse)
@@ -81,5 +86,4 @@ async def delete_workspace(
 async def list_workspaces(
     workspace_service: WorkspaceService = Depends(get_workspace_service),
 ):
-    # For now, return all workspaces (until auth is fully enforced)
     return await workspace_service.workspace_repo.get_all()

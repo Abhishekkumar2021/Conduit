@@ -9,17 +9,18 @@ Production-grade data integration platform. Clean. Extensible. No fluff.
 ```
 Control Plane (Server + Console)    Data Plane (Runner)
 ┌─────────────────────────────┐    ┌──────────────────────┐
-│  Console (React SPA)        │    │  Runner               │
-│  Server  (FastAPI)          │    │  Engine (Adapters,     │
-│  PostgreSQL · Redis         │    │    Transforms, DAG)    │
+│  Console (React SPA)        │    │  Runner Daemon        │
+│  Server  (FastAPI)          │    │  Engine (Adapters,    │
+│  PostgreSQL                 │    │    Processors, DAG)   │
 └─────────────────────────────┘    └──────────────────────┘
-        ↕ Task Queue (Redis)              ↕ Data Systems
+        ↕ HTTP (Poll/Claim)               ↕ Data Systems
 ```
 
-- **Server** — API gateway. Manages metadata: pipelines, integrations, runs, schedules.
+- **Server** — API gateway. Manages metadata: pipelines, integrations, runs.
 - **Console** — React SPA. Clean, minimal UI for managing pipelines and monitoring runs.
-- **Runner** — Executes pipeline runs. Lives where the data lives. Owns credentials.
-- **Engine** — Adapters + transforms + DAG executor. Shared between runner and server.
+- **Runner** — Standalone daemon. Polls the API for pending runs, executes pipeline graphs.
+- **Engine** — Adapters + processors + quality gates + DAG executor. Shared library.
+- **Domain** — Pure domain model. Entities, enums, errors, protocols. Zero I/O.
 
 ## Quick Start
 
@@ -51,17 +52,25 @@ conduit-dev stop --with-infra
 conduit/
 ├── packages/
 │   ├── domain/          # conduit.domain — entities, enums, protocols (zero deps)
-│   └── engine/          # conduit.engine — adapters, transforms, DAG executor
+│   └── engine/          # conduit.engine — adapters, processors, quality, DAG executor
 ├── server/              # FastAPI control plane
-├── runner/              # Conduit Runner (data plane)
+├── runner/              # Conduit Runner daemon (data plane)
 ├── console/             # React console (UI)
 └── tools/               # conduit-dev CLI
 ```
 
-## Documentation
+## Execution Model
 
-- [Architecture Blueprint](docs/architecture.md)
-- [Contributing](docs/CONTRIBUTING.md)
+1. User designs a pipeline in the Console (visual DAG builder)
+2. Pipeline revision is published via the Server API
+3. A run is triggered (manual, schedule, or API)
+4. Runner daemon claims the run via `POST /runs/claim` (row-level locking prevents races)
+5. Engine builds the DAG, executes nodes in topological order:
+   - **Extract** — read batches from source adapters
+   - **Transform/Processor** — apply registered processors (filter, map, cast, etc.)
+   - **Gate** — score records against quality rules, quarantine failures
+   - **Load** — write batches to target adapters
+6. Runner reports final status back to the Server
 
 ## CI/CD
 
@@ -71,22 +80,6 @@ conduit/
   - deploys to `staging` on pushes to `main`
   - creates GitHub Releases on tags like `v1.2.3`
   - deploys to `production` on version tags or manual dispatch
-
-Required GitHub configuration:
-
-- Environments:
-  - `staging`
-  - `production` (recommended: require manual approval)
-- Optional repository variables (for custom env names):
-  - `STAGING_ENVIRONMENT` (defaults to `staging`)
-  - `PRODUCTION_ENVIRONMENT` (defaults to `production`)
-  - `DEPLOY_HEALTHCHECK_TIMEOUT_SECONDS` (defaults to `300`)
-  - `DEPLOY_HEALTHCHECK_INTERVAL_SECONDS` (defaults to `10`)
-- Environment secrets:
-  - `staging`: `DEPLOY_WEBHOOK_URL`
-  - `staging`: `DEPLOY_HEALTHCHECK_URL` (optional but recommended)
-  - `production`: `DEPLOY_WEBHOOK_URL`
-  - `production`: `DEPLOY_HEALTHCHECK_URL` (required)
 
 ## License
 

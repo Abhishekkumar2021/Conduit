@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.dependencies.services import get_integration_service
 from app.services.integration import IntegrationService
@@ -33,13 +33,13 @@ async def list_available_adapters():
 
 
 class IntegrationCreate(BaseModel):
-    name: str
-    adapter_type: str
-    config: dict[str, Any]
+    name: str = Field(min_length=1, max_length=200)
+    adapter_type: str = Field(min_length=1, max_length=50)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class IntegrationUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
     config: dict[str, Any] | None = None
 
 
@@ -49,6 +49,7 @@ class IntegrationResponse(BaseModel):
     adapter_type: str
     status: str
     status_message: str | None = None
+    config: dict[str, Any] | None = None
 
     model_config = {"from_attributes": True}
 
@@ -63,15 +64,12 @@ async def create_integration(
     req: IntegrationCreate,
     integration_service: IntegrationService = Depends(get_integration_service),
 ):
-    try:
-        return await integration_service.register_integration(
-            workspace_id=workspace_id,
-            name=req.name,
-            adapter_type=req.adapter_type,
-            config=req.config,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    return await integration_service.register_integration(
+        workspace_id=workspace_id,
+        name=req.name,
+        adapter_type=req.adapter_type,
+        config=req.config,
+    )
 
 
 @router.get(

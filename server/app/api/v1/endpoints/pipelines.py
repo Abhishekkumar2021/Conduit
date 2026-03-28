@@ -2,7 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.dependencies.services import get_pipeline_service
 from app.services.pipeline import PipelineService
@@ -11,13 +11,13 @@ router = APIRouter()
 
 
 class PipelineCreate(BaseModel):
-    name: str
-    description: str = ""
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
 
 
 class PipelineUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
 
 
 class PipelineResponse(BaseModel):
@@ -32,8 +32,8 @@ class PipelineResponse(BaseModel):
 
 
 class RevisionCreate(BaseModel):
-    number: int
-    summary: str
+    number: int = Field(ge=1)
+    summary: str = Field(default="", max_length=500)
     stages: list[dict[str, Any]]
     edges: list[dict[str, Any]]
 
@@ -78,15 +78,12 @@ async def create_pipeline(
     req: PipelineCreate,
     pipeline_service: PipelineService = Depends(get_pipeline_service),
 ):
-    try:
-        pipeline = await pipeline_service.create_pipeline(
-            workspace_id=workspace_id,
-            name=req.name,
-            description=req.description,
-        )
-        return pipeline
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    pipeline = await pipeline_service.create_pipeline(
+        workspace_id=workspace_id,
+        name=req.name,
+        description=req.description,
+    )
+    return pipeline
 
 
 @router.get(
@@ -184,7 +181,4 @@ async def publish_revision(
     revision_id: UUID,
     pipeline_service: PipelineService = Depends(get_pipeline_service),
 ):
-    try:
-        return await pipeline_service.publish_revision(pipeline_id, revision_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    return await pipeline_service.publish_revision(pipeline_id, revision_id)

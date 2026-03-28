@@ -6,6 +6,8 @@ Registered as both `conduit` and `cdt` via pyproject.toml entry points.
 
 from __future__ import annotations
 
+import logging
+
 import typer
 
 app = typer.Typer(
@@ -19,37 +21,38 @@ vault_app = typer.Typer(help="Manage integration credentials in the local vault"
 app.add_typer(vault_app, name="vault")
 
 
-@app.command()
-def start(
-    config: str = typer.Option("~/.conduit/config.toml", help="Path to runner config"),
-    api_url: str = typer.Option(
-        "http://localhost:8000/api/v1", help="Control Plane API URL"
-    ),
-):
-    """Start the Conduit Runner."""
-    typer.echo("Starting Conduit Runner...")
-
-    from conduit.runner.main import RunnerDaemon
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
+def _setup_logging(verbose: bool = False) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-    daemon = RunnerDaemon(api_url=api_url)
+
+@app.command()
+def start(
+    api_url: str = typer.Option(
+        "http://localhost:8000/api/v1", help="Control Plane API URL"
+    ),
+    poll_interval: int = typer.Option(5, help="Seconds between poll cycles"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug logging"),
+):
+    """Start the Conduit Runner daemon."""
+    _setup_logging(verbose)
+
+    from conduit.runner.main import RunnerDaemon
+
+    daemon = RunnerDaemon(api_url=api_url, poll_interval=poll_interval)
     daemon.start()
 
 
 @app.command()
-def stop():
-    """Stop the Conduit Runner."""
-    typer.echo("Stopping runner...")
-
-
-@app.command()
-def status():
-    """Check runner status."""
-    typer.echo("Runner status: offline")
+def version():
+    """Show the runner version."""
+    typer.echo("conduit-runner 0.1.0")
 
 
 # ── Vault Commands ──

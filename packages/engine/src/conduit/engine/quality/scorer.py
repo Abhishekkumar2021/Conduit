@@ -7,6 +7,7 @@ Records above threshold pass downstream; below go to quarantine.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -126,8 +127,6 @@ class QualityScorer:
                 msg = "" if passed else f"'{column}' value '{value}' not in allowed set"
 
             case "matches":
-                import re
-
                 pattern = rule.get("pattern", "")
                 passed = bool(re.match(pattern, str(value or "")))
                 msg = "" if passed else f"'{column}' does not match pattern '{pattern}'"

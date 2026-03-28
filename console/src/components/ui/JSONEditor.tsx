@@ -21,7 +21,7 @@ export const JSONEditor: React.FC<JSONEditorProps> = ({
   return (
     <div
       className={cn(
-        "relative rounded-xl border border-border/40 bg-muted/5 p-1 text-[12px] focus-within:ring-[3px] focus-within:ring-primary/30 focus-within:border-primary/60 transition-all overflow-hidden",
+        "relative rounded-lg border border-border bg-secondary/50 text-xs transition-all duration-150 overflow-hidden focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20",
         className,
       )}
     >
@@ -31,8 +31,8 @@ export const JSONEditor: React.FC<JSONEditorProps> = ({
         highlight={(code) => highlight(code, languages.json, "json")}
         padding={12}
         placeholder={placeholder}
-        className="font-mono focus:outline-none min-h-[100px]"
-        textareaClassName="focus:outline-none"
+        className="font-mono focus:outline-none min-h-[100px] leading-relaxed"
+        textareaClassName="focus:outline-none !bg-transparent"
         preClassName="prism-code"
       />
     </div>

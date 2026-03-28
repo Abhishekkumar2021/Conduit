@@ -94,7 +94,7 @@ class Asset(Base):
             "integration_id", "qualified_name", name="uq_asset_integration_name"
         ),
         CheckConstraint(
-            "asset_type IN ('table', 'view', 'file', 'collection', 'endpoint')",
+            "asset_type IN ('table', 'view', 'file', 'collection', 'endpoint', 'object', 'index', 'key')",
             name="ck_asset_type",
         ),
     )

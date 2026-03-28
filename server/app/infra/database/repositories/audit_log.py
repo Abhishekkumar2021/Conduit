@@ -15,15 +15,22 @@ class AuditLogRepository(BaseRepository[AuditLog]):
         super().__init__(AuditLog, session)
 
     async def get_by_workspace(
-        self, workspace_id: UUID, limit: int = 100
+        self,
+        workspace_id: UUID,
+        limit: int = 100,
+        entity_type: str | None = None,
+        action: str | None = None,
     ) -> Sequence[AuditLog]:
-        """Get recent audit logs for a workspace."""
+        """Get recent audit logs for a workspace with optional filters."""
         stmt = (
             select(self.model)
             .where(self.model.workspace_id == workspace_id)
-            .order_by(self.model.created_at.desc())
-            .limit(limit)
         )
+        if entity_type:
+            stmt = stmt.where(self.model.entity_type == entity_type)
+        if action:
+            stmt = stmt.where(self.model.action == action)
+        stmt = stmt.order_by(self.model.created_at.desc()).limit(limit)
         result = await self._session.execute(stmt)
         return result.scalars().all()
 

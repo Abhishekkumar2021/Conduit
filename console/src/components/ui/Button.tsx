@@ -1,10 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react";
-import { buttonVariants, type ButtonVariant } from "@/lib/button-variants";
+import { buttonVariants, type ButtonVariant, type ButtonSize } from "@/lib/button-variants";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
-  size?: "sm" | "md";
+  size?: ButtonSize;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -20,4 +20,4 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
-export { Button, buttonVariants, type ButtonVariant };
+export { Button, buttonVariants, type ButtonVariant, type ButtonSize };

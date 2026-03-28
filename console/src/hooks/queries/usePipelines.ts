@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Pipeline, PipelineCreate } from "@/types/api";
 
@@ -13,7 +14,6 @@ export function usePipelines(workspaceId: string) {
   return useQuery({
     queryKey: pipelineKeys.list(workspaceId),
     queryFn: async () => {
-      // Assuming a GET /workspaces/{id}/pipelines exists or will exist in FastAPI
       const { data } = await api.get<Pipeline[]>(
         `/workspaces/${workspaceId}/pipelines`,
       );
@@ -45,13 +45,15 @@ export function useCreatePipeline(workspaceId: string) {
       );
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (pipeline) => {
       queryClient.invalidateQueries({
         queryKey: pipelineKeys.list(workspaceId),
       });
+      toast.success(`Pipeline "${pipeline.name}" created`);
     },
   });
 }
+
 export function useUpdatePipeline(workspaceId: string) {
   const queryClient = useQueryClient();
 
@@ -69,13 +71,14 @@ export function useUpdatePipeline(workspaceId: string) {
       );
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (pipeline, variables) => {
       queryClient.invalidateQueries({
         queryKey: pipelineKeys.list(workspaceId),
       });
       queryClient.invalidateQueries({
-        queryKey: pipelineKeys.all,
+        queryKey: pipelineKeys.detail(variables.id),
       });
+      toast.success(`Pipeline "${pipeline.name}" updated`);
     },
   });
 }
@@ -91,6 +94,7 @@ export function useDeletePipeline(workspaceId: string) {
       queryClient.invalidateQueries({
         queryKey: pipelineKeys.list(workspaceId),
       });
+      toast.success("Pipeline deleted");
     },
   });
 }

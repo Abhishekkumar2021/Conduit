@@ -91,7 +91,7 @@ class PostgresAdapter(BaseAdapter):
                 raise ValueError("PostgreSQL adapter port must be an integer.") from exc
 
             connect_target = URL.create(
-                "postgresql",
+                "postgresql+psycopg2",
                 username=str(username),
                 password=str(password) if password else None,
                 host=str(host),

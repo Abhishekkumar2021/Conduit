@@ -2,6 +2,7 @@
 Conduit Server — Integration service.
 """
 
+import asyncio
 import logging
 from typing import Sequence
 from uuid import UUID
@@ -10,6 +11,7 @@ from app.infra.database.models import Integration
 from app.infra.database.repositories.asset import AssetRepository
 from app.infra.database.repositories.integration import IntegrationRepository
 from app.services.vault import VaultService
+from conduit.domain.errors import NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +40,7 @@ class IntegrationService:
         try:
             adapter_cls = AdapterRegistry.get(adapter_type)
         except KeyError as e:
-            raise ValueError(str(e)) from e
+            raise ValidationError(str(e), field="adapter_type") from e
 
         meta = adapter_cls.meta
         vault_status = "not_configured"
@@ -57,7 +59,8 @@ class IntegrationService:
             },
         )
         logger.info(
-            f"Registered integration '{name}' ({adapter_type}) in workspace {workspace_id} with vault: {vault_status}"
+            "Registered integration '%s' (%s) in workspace %s [vault=%s]",
+            name, adapter_type, workspace_id, vault_status,
         )
         return integration
 
@@ -71,97 +74,93 @@ class IntegrationService:
         """Dynamically fetch schemas/tables from the data source and save to the DB."""
         integration = await self.integration_repo.get(integration_id)
         if not integration:
-            raise ValueError(f"Integration {integration_id} not found")
+            raise NotFoundError("Integration", str(integration_id))
+
+        # Capture values before thread boundary to avoid lazy-load issues
+        int_id = integration.id
+        ws_id = integration.workspace_id
+        adapter_type = integration.adapter_type
+        plain_config = dict(integration.config or {})
 
         from conduit.engine.adapters.registry import AdapterRegistry
 
-        try:
-            # 1. Fetch metadata to identify which fields are secrets
-            meta = AdapterRegistry.get(integration.adapter_type)
+        status = "unreachable"
+        status_message = ""
 
-            # 2. Resolve secrets from Vault
+        try:
+            meta = AdapterRegistry.get(adapter_type)
             resolved_config = self.vault_service.resolve_integration_config(
-                plain_config=integration.config or {}, vault_fields=meta.vault_fields
+                plain_config=plain_config, vault_fields=meta.vault_fields
             )
 
-            # 3. Instantiate the proper engine adapter with the hydrated in-memory config
-            adapter = AdapterRegistry.create(integration.adapter_type, resolved_config)
+            adapter = AdapterRegistry.create(adapter_type, resolved_config)
 
-            # 4. Execute discovery natively via the adapter connection lifecycle
-            with adapter.session():
-                assets_data = adapter.discover()
+            def _discover():
+                with adapter.session():
+                    return adapter.discover()
+
+            assets_data = await asyncio.to_thread(_discover)
 
             if assets_data:
                 await self.asset_repo.upsert_assets(
-                    integration_id=integration.id,
-                    workspace_id=integration.workspace_id,
+                    integration_id=int_id,
+                    workspace_id=ws_id,
                     assets_data=assets_data,
                 )
 
-            integration.status = "healthy"
-            integration.status_message = (
-                f"Successfully synced {len(assets_data)} assets"
-            )
+            status = "healthy"
+            status_message = f"Successfully synced {len(assets_data)} assets"
 
         except Exception as e:
-            logger.error(f"Failed to sync assets for {integration_id}: {e}")
-            integration.status = "unreachable"
-            integration.status_message = str(e)[:450]  # truncate long error messages
+            logger.error("Failed to sync assets for %s: %s", integration_id, e)
+            status = "unreachable"
+            status_message = str(e)[:450]
 
-        await self.integration_repo.update(
-            integration.id,
-            {
-                "status": integration.status,
-                "status_message": integration.status_message,
-            },
+        updated = await self.integration_repo.update(
+            int_id, {"status": status, "status_message": status_message}
         )
-
-        return integration
+        return updated or integration
 
     async def test_connection(self, integration_id: UUID) -> Integration:
         """Test the connection to the data source using the engine adapter."""
         integration = await self.integration_repo.get(integration_id)
         if not integration:
-            raise ValueError(f"Integration {integration_id} not found")
+            raise NotFoundError("Integration", str(integration_id))
+
+        int_id = integration.id
+        adapter_type = integration.adapter_type
+        plain_config = dict(integration.config or {})
 
         from conduit.engine.adapters.registry import AdapterRegistry
 
-        try:
-            # 1. Fetch metadata to identify which fields are secrets
-            meta = AdapterRegistry.get(integration.adapter_type)
+        status = "unreachable"
+        status_message = ""
 
-            # 2. Resolve secrets from Vault
+        try:
+            meta = AdapterRegistry.get(adapter_type)
             resolved_config = self.vault_service.resolve_integration_config(
-                plain_config=integration.config or {}, vault_fields=meta.vault_fields
+                plain_config=plain_config, vault_fields=meta.vault_fields
             )
 
-            # 3. Instantiate the proper engine adapter with the hydrated in-memory config
-            adapter = AdapterRegistry.create(integration.adapter_type, resolved_config)
-
-            # 4. Test connection via the adapter
-            is_successful = adapter.test()
+            adapter = AdapterRegistry.create(adapter_type, resolved_config)
+            is_successful = await asyncio.to_thread(adapter.test)
 
             if is_successful:
-                integration.status = "healthy"
-                integration.status_message = "Connection successful"
+                status = "healthy"
+                status_message = "Connection successful"
             else:
-                integration.status = "unreachable"
-                integration.status_message = "Connection failed during test phase. Check credentials and network."
+                status = "unreachable"
+                status_message = "Connection failed. Check credentials and network."
 
         except Exception as e:
-            logger.error(f"Failed to test connection for {integration_id}: {e}")
-            integration.status = "unreachable"
-            integration.status_message = str(e)[:450]  # truncate long error messages
+            logger.error("Failed to test connection for %s: %s", integration_id, e)
+            status = "unreachable"
+            status_message = str(e)[:450]
 
-        await self.integration_repo.update(
-            integration.id,
-            {
-                "status": integration.status,
-                "status_message": integration.status_message,
-            },
+        updated = await self.integration_repo.update(
+            int_id, {"status": status, "status_message": status_message}
         )
-
-        return integration
+        return updated or integration
 
     async def update_integration(self, id: UUID, **kwargs) -> Integration | None:
         """Update integration details."""
@@ -184,12 +183,12 @@ class IntegrationService:
 
         integration = await self.integration_repo.update(id, kwargs)
         if integration:
-            logger.info(f"Integration {id} updated successfully")
+            logger.info("Integration %s updated", id)
         return integration
 
     async def delete_integration(self, id: UUID) -> bool:
         """Delete an integration."""
         success = await self.integration_repo.delete(id)
         if success:
-            logger.info(f"Integration {id} deleted successfully")
+            logger.info("Integration %s deleted", id)
         return success

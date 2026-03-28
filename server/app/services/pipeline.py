@@ -7,13 +7,14 @@ from datetime import datetime
 from typing import Any, Sequence
 from uuid import UUID
 
-from app.infra.database.models import Pipeline, Revision
+from app.infra.database.models import Pipeline, Quarantine, Revision, Run, Step
 from app.infra.database.repositories.pipeline import (
     EdgeRepository,
     PipelineRepository,
     RevisionRepository,
     StageRepository,
 )
+from conduit.domain.errors import NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class PipelineService:
         pipeline = await self.pipeline_repo.create(
             {"workspace_id": workspace_id, "name": name, "description": description},
         )
-        logger.info(f"Pipeline '{name}' created in workspace {workspace_id}")
+        logger.info("Pipeline '%s' created in workspace %s", name, workspace_id)
         return pipeline
 
     async def get_pipeline(self, pipeline_id: UUID) -> Pipeline | None:
@@ -108,7 +109,7 @@ class PipelineService:
                     },
                 )
 
-        logger.info(f"Created revision {number} for pipeline {pipeline_id}")
+        logger.info("Created revision %d for pipeline %s", number, pipeline_id)
 
         # Re-fetch with eagerly loaded relationships to avoid MissingGreenlet
         # during Pydantic serialization
@@ -132,11 +133,11 @@ class PipelineService:
         """
         pipeline = await self.pipeline_repo.get(pipeline_id)
         if not pipeline:
-            raise ValueError("Pipeline not found")
+            raise NotFoundError("Pipeline", str(pipeline_id))
 
         revision = await self.revision_repo.get(revision_id)
         if not revision or revision.pipeline_id != pipeline_id:
-            raise ValueError("Revision not found for this pipeline")
+            raise NotFoundError("Revision", str(revision_id))
 
         # Clear any previously published revision flags.
         existing_revisions = await self.revision_repo.get_by_pipeline(pipeline_id)
@@ -167,12 +168,38 @@ class PipelineService:
         """Update a pipeline."""
         pipeline = await self.pipeline_repo.update(pipeline_id, kwargs)
         if pipeline:
-            logger.info(f"Pipeline {pipeline_id} updated successfully")
+            logger.info("Pipeline %s updated", pipeline_id)
         return pipeline
 
     async def delete_pipeline(self, pipeline_id: UUID) -> bool:
-        """Delete a pipeline and all its revisions."""
+        """Delete a pipeline and all dependent data."""
+        from sqlalchemy import delete as sa_delete
+        from sqlalchemy import select as sa_select
+
+        # Delete quarantine records for this pipeline
+        await self.pipeline_repo._session.execute(
+            sa_delete(Quarantine).where(Quarantine.pipeline_id == pipeline_id)
+        )
+
+        # Delete steps for runs of this pipeline
+        run_ids_result = await self.pipeline_repo._session.execute(
+            sa_select(Run.id).where(Run.pipeline_id == pipeline_id)
+        )
+        run_ids = [r[0] for r in run_ids_result.all()]
+        if run_ids:
+            await self.pipeline_repo._session.execute(
+                sa_delete(Step).where(Step.run_id.in_(run_ids))
+            )
+
+        # Delete runs
+        await self.pipeline_repo._session.execute(
+            sa_delete(Run).where(Run.pipeline_id == pipeline_id)
+        )
+
+        # Clear published_revision_id to avoid circular FK
+        await self.pipeline_repo.update(pipeline_id, {"published_revision_id": None})
+
         success = await self.pipeline_repo.delete(pipeline_id)
         if success:
-            logger.info(f"Pipeline {pipeline_id} deleted successfully")
+            logger.info("Pipeline %s deleted", pipeline_id)
         return success

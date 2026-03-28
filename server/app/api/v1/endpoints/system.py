@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.api.dependencies.services import get_integration_service, get_vault_service
 from app.services.integration import IntegrationService
 from app.services.vault import VaultService
+from conduit.domain.errors import VaultResolutionError
 from conduit.engine.adapters.registry import AdapterRegistry
 
 router = APIRouter()
@@ -46,7 +47,7 @@ async def check_runner_status(
                 abstract_key = plain_config[field_name]
                 try:
                     vault_service.get_secret(abstract_key)
-                except ValueError:
+                except VaultResolutionError:
                     missing_vars.add(abstract_key)
 
     return {

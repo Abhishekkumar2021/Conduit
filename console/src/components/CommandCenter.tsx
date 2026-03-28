@@ -8,15 +8,12 @@ import {
   Settings,
   Plus,
   Plug,
-  Command as CommandIcon,
   ArrowRight,
 } from "lucide-react";
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
 import { usePipelines } from "@/hooks/queries/usePipelines";
 import { useIntegrations } from "@/hooks/queries/useIntegrations";
 import { cn } from "@/lib/utils";
-
-/* ─── Types & Constants ─────────────────────────────────────── */
 
 interface Command {
   id: string;
@@ -35,8 +32,6 @@ const CATEGORIES = [
   "Integrations",
 ] as const;
 
-/* ─── Command Center Component ───────────────────────────────── */
-
 export function CommandCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -50,8 +45,6 @@ export function CommandCenter() {
   const workspaceId = workspaces?.[0]?.id ?? "";
   const { data: pipelines } = usePipelines(workspaceId);
   const { data: integrations } = useIntegrations(workspaceId);
-
-  /* ─── Keyboard Shortcuts ──────────────────────────────────── */
 
   useEffect(() => {
     const openCenter = () => {
@@ -87,8 +80,6 @@ export function CommandCenter() {
   useEffect(() => {
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 10);
   }, [isOpen]);
-
-  /* ─── Command List ────────────────────────────────────────── */
 
   const commands = useMemo(() => {
     const items: Command[] = [
@@ -176,15 +167,13 @@ export function CommandCenter() {
           description: i.adapter_type,
           category: "Integrations",
           icon: Plug,
-          action: () => navigate("/integrations"),
+          action: () => navigate(`/integrations/${i.id}`),
         }),
       );
     }
 
     return items;
   }, [navigate, pipelines, integrations]);
-
-  /* ─── Filtering & Grouping ────────────────────────────────── */
 
   const filteredAndGrouped = useMemo(() => {
     const s = search.toLowerCase().trim();
@@ -219,8 +208,6 @@ export function CommandCenter() {
     }
   }, [selectedIndex, flattenedItems]);
 
-  /* ─── Input Key Handler ───────────────────────────────────── */
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const len = flattenedItems.length;
     if (len === 0) return;
@@ -240,32 +227,21 @@ export function CommandCenter() {
 
   if (!isOpen) return null;
 
-  /* ─── Render ──────────────────────────────────────────────── */
-
   return (
-    <div className="fixed inset-0 z-100 flex items-start justify-center pt-[14vh]">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-100 flex items-start justify-center pt-[20vh]">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-150"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
         onClick={() => setIsOpen(false)}
       />
 
-      {/* Modal */}
-      <div
-        className="relative w-full max-w-[560px] mx-4 overflow-hidden rounded-xl border border-border/60 bg-popover shadow-2xl animate-in zoom-in-95 slide-in-from-top-2 duration-200"
-        style={{
-          boxShadow:
-            "0 25px 50px -12px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.05) inset",
-        }}
-      >
-        {/* Search */}
-        <div className="flex items-center gap-3 px-4 border-b border-border/60">
-          <Search className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+      <div className="relative w-full max-w-[520px] mx-4 overflow-hidden rounded-xl border border-border bg-card shadow-2xl shadow-black/20 animate-in zoom-in-95 slide-in-from-top-2 duration-200">
+        <div className="flex items-center gap-3 px-4 border-b border-border">
+          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
           <input
             ref={inputRef}
             type="text"
             placeholder="Type a command or search..."
-            className="flex-1 bg-transparent py-3.5 text-[15px] text-foreground placeholder:text-muted-foreground/40 border-none outline-none"
+            className="flex-1 bg-transparent py-3.5 text-sm text-foreground placeholder:text-muted-foreground/60 border-none outline-none"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -275,17 +251,15 @@ export function CommandCenter() {
             autoComplete="off"
             spellCheck={false}
           />
-          <kbd className="shrink-0 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground/50 bg-muted/60 rounded border border-border/60">
+          <kbd className="shrink-0 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground/60 bg-secondary rounded border border-border">
             ESC
           </kbd>
         </div>
 
-        {/* Results */}
-        <div ref={scrollRef} className="max-h-[380px] overflow-y-auto py-1.5">
+        <div ref={scrollRef} className="max-h-[340px] overflow-y-auto py-1.5">
           {flattenedItems.length === 0 ? (
-            <div className="py-14 text-center">
-              <Search className="h-6 w-6 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground/50">
+            <div className="py-12 text-center">
+              <p className="text-sm text-muted-foreground">
                 No results for &ldquo;{search}&rdquo;
               </p>
             </div>
@@ -302,10 +276,10 @@ export function CommandCenter() {
                 <div key={category}>
                   {catIdx > 0 &&
                     filteredAndGrouped[CATEGORIES[catIdx - 1]]?.length > 0 && (
-                      <div className="h-px bg-border/40 mx-3 my-1" />
+                      <div className="h-px bg-border mx-2 my-1" />
                     )}
-                  <div className="px-4 pt-2.5 pb-1">
-                    <span className="text-[11px] font-semibold text-muted-foreground/50 uppercase tracking-wider">
+                  <div className="px-3 pt-2.5 pb-1">
+                    <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
                       {category}
                     </span>
                   </div>
@@ -324,44 +298,35 @@ export function CommandCenter() {
                         }}
                         onMouseEnter={() => setSelectedIndex(globalIdx)}
                         className={cn(
-                          "w-full flex items-center gap-3 px-3 mx-1.5 py-2 rounded-lg text-left transition-colors duration-75",
+                          "w-full flex items-center gap-3 px-3 py-2 mx-1.5 rounded-lg text-left transition-all duration-100",
                           isSelected
-                            ? "bg-primary/10 text-foreground"
+                            ? "bg-accent text-foreground"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                         style={{ width: "calc(100% - 12px)" }}
                       >
                         <div
                           className={cn(
-                            "shrink-0 h-8 w-8 rounded-md flex items-center justify-center transition-colors",
+                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
                             isSelected
-                              ? "bg-primary/15 text-primary"
-                              : "bg-muted/50 text-muted-foreground/60",
+                              ? "bg-primary/10 text-primary"
+                              : "bg-secondary text-muted-foreground",
                           )}
                         >
-                          <Icon className="h-4 w-4" />
+                          <Icon className="h-3.5 w-3.5" />
                         </div>
-
                         <div className="flex-1 min-w-0">
-                          <div
-                            className={cn(
-                              "text-[13px] font-semibold truncate",
-                              isSelected
-                                ? "text-foreground"
-                                : "text-foreground/80",
-                            )}
-                          >
+                          <div className="text-[13px] font-medium truncate">
                             {item.label}
                           </div>
                           {item.description && (
-                            <div className="text-[11px] text-muted-foreground/60 truncate mt-0.5">
+                            <div className="text-xs text-muted-foreground/70 truncate">
                               {item.description}
                             </div>
                           )}
                         </div>
-
                         {isSelected && (
-                          <ArrowRight className="h-3.5 w-3.5 text-primary/60 shrink-0 animate-in fade-in slide-in-from-left-1 duration-150" />
+                          <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
                         )}
                       </button>
                     );
@@ -372,25 +337,18 @@ export function CommandCenter() {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-2 border-t border-border/40 bg-muted/20">
-          <div className="flex items-center gap-4">
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
-              <kbd className="px-1 py-px rounded bg-muted/60 border border-border/50 text-[10px] font-mono font-semibold">
-                ↑↓
-              </kbd>
-              navigate
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
-              <kbd className="px-1 py-px rounded bg-muted/60 border border-border/50 text-[10px] font-mono font-semibold">
-                ↵
-              </kbd>
-              open
-            </span>
-          </div>
-          <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/30 uppercase tracking-wider">
-            <CommandIcon className="h-3 w-3" />
-            Conduit
+        <div className="flex items-center gap-4 px-4 py-2.5 border-t border-border text-xs text-muted-foreground/50">
+          <span className="inline-flex items-center gap-1.5">
+            <kbd className="px-1 py-px rounded bg-secondary border border-border text-[10px] font-mono">
+              ↑↓
+            </kbd>
+            navigate
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <kbd className="px-1 py-px rounded bg-secondary border border-border text-[10px] font-mono">
+              ↵
+            </kbd>
+            open
           </span>
         </div>
       </div>

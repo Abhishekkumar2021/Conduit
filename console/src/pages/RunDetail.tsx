@@ -1,30 +1,73 @@
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
 import {
   ArrowLeft,
-  Activity,
-  Info,
   CheckCircle2,
   AlertTriangle,
   Loader2,
+  RotateCcw,
+  Square,
+  Copy,
+  Check,
+  XCircle,
+  Clock,
+  Zap,
+  Database,
+  ArrowRightLeft,
+  Timer,
+  Hash,
+  Calendar,
+  ChevronRight,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-// import { Card } from "@/components/ui/Card";
-// import { RUN_STATUS } from "@/lib/constants";
 import { useRunDetail } from "@/hooks/queries/useRuns";
 import { useWorkspaces } from "@/hooks/queries/useWorkspaces";
 import { usePipelines } from "@/hooks/queries/usePipelines";
+import { useRetryRun, useCancelRun } from "@/hooks/useRunOps";
 
-function formatDuration(durationMs?: number) {
-  if (!durationMs) return "—";
-  return `${(durationMs / 1000).toFixed(1)}s`;
+const STATUS_META: Record<string, { icon: typeof CheckCircle2; label: string; color: string; badgeVariant: "success" | "danger" | "warning" | "default" }> = {
+  succeeded: { icon: CheckCircle2, label: "Succeeded", color: "text-emerald-500", badgeVariant: "success" },
+  failed:    { icon: XCircle,      label: "Failed",    color: "text-red-500",     badgeVariant: "danger" },
+  cancelled: { icon: XCircle,      label: "Cancelled", color: "text-muted-foreground", badgeVariant: "default" },
+  running:   { icon: Loader2,      label: "Running",   color: "text-blue-500",    badgeVariant: "info" as never },
+  pending:   { icon: Clock,        label: "Pending",   color: "text-amber-500",   badgeVariant: "warning" },
+  queued:    { icon: Clock,        label: "Queued",     color: "text-amber-500",   badgeVariant: "warning" },
+};
+
+const STAGE_ICON: Record<string, typeof Database> = {
+  extract: Database,
+  load: ArrowRightLeft,
+  transform: Zap,
+  processor: Zap,
+  gate: Zap,
+};
+
+function formatDuration(ms?: number) {
+  if (!ms) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
 }
 
 function formatDate(ts?: string) {
   if (!ts) return "—";
   return new Date(ts).toLocaleString();
+}
+
+function formatRelative(ts?: string) {
+  if (!ts) return "";
+  try {
+    return formatDistanceToNow(new Date(ts), { addSuffix: true });
+  } catch {
+    return "";
+  }
 }
 
 export function RunDetail() {
@@ -33,264 +76,322 @@ export function RunDetail() {
   const { data: workspaces } = useWorkspaces();
   const workspaceId = workspaces?.[0]?.id ?? "";
   const { data: pipelines } = usePipelines(workspaceId);
+  const { mutate: retryRun, isPending: retryPending } = useRetryRun();
+  const { mutate: cancelRun, isPending: cancelPending } = useCancelRun();
+  const [idCopied, setIdCopied] = useState(false);
+
+  const recordsTotals = useMemo(() => {
+    if (!run?.steps) return { in: 0, out: 0, failed: 0 };
+    return run.steps.reduce(
+      (acc, s) => ({
+        in: acc.in + s.records_in,
+        out: acc.out + s.records_out,
+        failed: acc.failed + s.records_failed,
+      }),
+      { in: 0, out: 0, failed: 0 },
+    );
+  }, [run]);
+
   const pipelineName =
-    pipelines?.find((pipeline) => pipeline.id === run?.pipeline_id)?.name ||
-    "Unknown Pipeline";
+    pipelines?.find((p) => p.id === run?.pipeline_id)?.name || "Unknown Pipeline";
+
+  const copyId = async () => {
+    try {
+      await navigator.clipboard.writeText(run!.id);
+      toast.success("Run ID copied");
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy run ID");
+    }
+  };
 
   if (isLoading) {
     return (
-      <div className="fade-in p-4 sm:p-6 lg:p-8 space-y-4">
-        <Skeleton className="h-8 w-56" />
-        <Skeleton className="h-24 w-full max-w-[1000px]" />
-        <Skeleton className="h-72 w-full max-w-[1000px]" />
+      <div className="fade-in max-w-5xl mx-auto p-6 lg:p-8 space-y-6">
+        <Skeleton className="h-8 w-48 rounded-lg" />
+        <div className="grid grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
 
   if (!run) {
     return (
-      <div className="fade-in p-4 sm:p-6 lg:p-8">
-        <PageHeader
-          title="Run Not Found"
-          description="This run may have been deleted or is not accessible."
-          actions={
-            <Link to="/runs">
-              <Button variant="secondary" size="sm">
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Back to Runs
-              </Button>
-            </Link>
-          }
-        />
+      <div className="fade-in max-w-5xl mx-auto p-6 lg:p-8">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10 text-red-500">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <h3 className="text-base font-semibold">Run not found</h3>
+          <p className="mt-1.5 text-sm text-muted-foreground">This run may have been deleted.</p>
+          <Link to="/runs">
+            <Button variant="secondary" size="sm" className="mt-5">
+              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+              Back to Runs
+            </Button>
+          </Link>
+        </div>
       </div>
     );
   }
 
+  const sm = STATUS_META[run.status] || STATUS_META.pending;
+  const StatusIcon = sm.icon;
+  const isTerminal = ["succeeded", "failed", "cancelled"].includes(run.status);
+
   return (
-    <div className="fade-in p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="fade-in max-w-5xl mx-auto p-6 lg:p-8 space-y-6">
+      {/* Header */}
       <PageHeader
-        title={`Run #${run.id.slice(0, 8)}`}
-        description="Execution details and stage outcomes"
-        actions={
-          <Link to="/runs">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-3 text-xs font-semibold text-muted-foreground/60 hover:text-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 mr-2" />
-              Back to Runs
-            </Button>
+        title={`Run ${run.id.slice(0, 8)}`}
+        preTitle={
+          <Link
+            to="/runs"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Runs
           </Link>
+        }
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={retryPending || (run.status !== "failed" && run.status !== "cancelled")}
+              onClick={() => retryRun(run.id)}
+            >
+              {retryPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+              Retry
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={cancelPending || !["running", "pending", "queued"].includes(run.status)}
+              onClick={() => cancelRun(run.id)}
+            >
+              {cancelPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+              Cancel
+            </Button>
+          </div>
         }
       />
 
-      <div className="flex flex-wrap items-center gap-x-12 gap-y-4 px-1 pb-6 mb-8 border-b border-border/20">
-        <div className="space-y-1">
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold">
-            Status
+      {/* Status + meta bar */}
+      <div className="flex items-center gap-3 -mt-4 flex-wrap">
+        <Badge variant={sm.badgeVariant} dot className="text-xs">
+          {sm.label}
+        </Badge>
+        <Link to={`/pipelines/${run.pipeline_id}`} className="text-xs font-medium text-primary hover:underline">
+          {pipelineName}
+        </Link>
+        <span className="text-xs text-muted-foreground capitalize">{run.trigger_type}</span>
+        {run.started_at && (
+          <span className="text-xs text-muted-foreground" title={formatDate(run.started_at)}>
+            {formatRelative(run.started_at)}
           </span>
-          <div className="flex items-center gap-2">
-            {run.status === "succeeded" ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            ) : run.status === "failed" ? (
-              <AlertTriangle className="h-4 w-4 text-rose-500" />
-            ) : (
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            )}
-            <span className="text-[13px] font-semibold text-foreground/80 capitalize">
-              {run.status}
-            </span>
-          </div>
-        </div>
-        <div className="space-y-1">
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold">
-            Duration
-          </span>
-          <p className="text-[13px] font-semibold text-foreground/80 tabular-nums">
-            {formatDuration(run.duration_ms)}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold">
-            Pipeline
-          </span>
-          <p className="text-[13px] font-semibold text-foreground/80">
-            {pipelineName}
-          </p>
-        </div>
-        <div className="space-y-1">
-          <span className="text-[10px] uppercase tracking-widest text-muted-foreground/40 font-bold">
-            Trigger
-          </span>
-          <p className="text-[13px] font-semibold text-foreground/80 capitalize">
-            {run.trigger_type}
-          </p>
-        </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        {/* Timeline/Steps Column */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground/40 flex items-center gap-2">
-              <Activity className="h-3.5 w-3.5" />
-              Execution Flow
-            </h3>
-            <span className="text-[10px] font-bold text-muted-foreground/30 uppercase tracking-tight">
-              {run.steps.length} Stages
-            </span>
+      {/* Stats row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", isTerminal ? (run.status === "succeeded" ? "bg-emerald-500/10 text-emerald-500" : run.status === "failed" ? "bg-red-500/10 text-red-500" : "bg-muted text-muted-foreground") : "bg-blue-500/10 text-blue-500")}>
+              <StatusIcon className={cn("h-4 w-4", run.status === "running" && "animate-spin")} />
+            </div>
+            <div>
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Status</p>
+              <p className="text-sm font-semibold capitalize">{sm.label}</p>
+            </div>
           </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
+              <Timer className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Duration</p>
+              <p className="text-sm font-semibold tabular-nums">{formatDuration(run.duration_ms)}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+              <Hash className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Records</p>
+              <p className="text-sm font-semibold tabular-nums">{recordsTotals.out.toLocaleString()}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", recordsTotals.failed > 0 ? "bg-red-500/10 text-red-500" : "bg-muted text-muted-foreground")}>
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Failed</p>
+              <p className={cn("text-sm font-semibold tabular-nums", recordsTotals.failed > 0 && "text-red-500")}>{recordsTotals.failed.toLocaleString()}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
-          <div className="space-y-1 relative before:absolute before:left-[15.5px] before:top-4 before:bottom-4 before:w-px before:bg-border/20">
-            {run.steps.length === 0 ? (
-              <div className="rounded-lg p-12 text-center text-muted-foreground/30 bg-muted/5 border border-dashed border-border/20">
-                No stages recorded for this run.
-              </div>
-            ) : (
-              run.steps.map((step) => {
-                return (
-                  <div
-                    key={step.id}
-                    className="group relative flex gap-6 py-3 transition-all"
-                  >
-                    <div
-                      className={cn(
-                        "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/10 transition-all shadow-xs",
-                        step.status === "succeeded"
-                          ? "bg-emerald-500/10 text-emerald-500"
-                          : step.status === "failed"
-                            ? "bg-rose-500/10 text-rose-500"
-                            : "bg-muted/30 text-muted-foreground/30",
-                      )}
-                    >
-                      {step.status === "succeeded" ? (
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      ) : step.status === "failed" ? (
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                      ) : (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      {/* Error banner */}
+      {run.error_message && (
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/5 border border-red-500/20">
+          <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-600 dark:text-red-400">Execution Error</p>
+            <p className="text-sm text-red-600/80 dark:text-red-400/80 mt-1 leading-relaxed">{run.error_message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Execution steps */}
+      <Card padding={false}>
+        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Execution Steps</h3>
+          <span className="text-xs text-muted-foreground">{run.steps.length} stage{run.steps.length !== 1 ? "s" : ""}</span>
+        </div>
+        {run.steps.length === 0 ? (
+          <div className="px-5 py-16 text-center">
+            <p className="text-sm text-muted-foreground">No stages recorded for this run.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {run.steps.map((step, idx) => {
+              const isSuccess = step.status === "succeeded";
+              const isFailed = step.status === "failed";
+              const StageIcon = STAGE_ICON[step.stage_kind] || Zap;
+              return (
+                <div key={step.id} className="px-5 py-4 hover:bg-accent/30 transition-colors">
+                  <div className="flex items-start gap-4">
+                    {/* Step number + icon */}
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <div className={cn(
+                        "flex h-9 w-9 items-center justify-center rounded-lg border",
+                        isSuccess ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" :
+                        isFailed ? "bg-red-500/10 border-red-500/20 text-red-500" :
+                        "bg-muted border-border text-muted-foreground",
+                      )}>
+                        {isSuccess ? <CheckCircle2 className="h-4 w-4" /> :
+                         isFailed ? <XCircle className="h-4 w-4" /> :
+                         <Loader2 className="h-4 w-4 animate-spin" />}
+                      </div>
+                      {idx < run.steps.length - 1 && (
+                        <div className="w-px h-4 bg-border" />
                       )}
                     </div>
 
+                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-4">
-                        <div className="min-w-0">
-                          <h4 className="text-[13.5px] font-semibold text-foreground/90 leading-tight">
-                            {step.stage_key}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-tight">
-                              {step.stage_kind}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground/20">
-                              •
-                            </span>
-                            <span className="text-[11px] text-muted-foreground/40 font-medium tabular-nums">
-                              {formatDuration(step.duration_ms)}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <StageIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <h4 className="text-sm font-medium truncate">{step.stage_key}</h4>
+                          <Badge variant="default" className="text-[10px] shrink-0 capitalize">{step.stage_kind}</Badge>
                         </div>
-
-                        <div className="flex items-center gap-6 text-[11px] tabular-nums text-muted-foreground/50 font-bold uppercase tracking-tight">
-                          <div className="flex flex-col items-end min-w-[32px]">
-                            <span className="text-[8px] opacity-40">In</span>
-                            <span>{step.records_in}</span>
-                          </div>
-                          <div className="flex flex-col items-end min-w-[32px]">
-                            <span className="text-[8px] opacity-40">Out</span>
-                            <span>{step.records_out}</span>
-                          </div>
-                          {step.records_failed > 0 && (
-                            <div className="flex flex-col items-end min-w-[32px] text-rose-500/60">
-                              <span className="text-[8px] opacity-40">
-                                Fail
-                              </span>
-                              <span>{step.records_failed}</span>
-                            </div>
-                          )}
-                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                          {formatDuration(step.duration_ms)}
+                        </span>
                       </div>
 
-                      {step.error_message && (
-                        <div className="mt-3 rounded-lg bg-rose-500/5 border border-rose-500/10 p-3.5 text-[12px] text-rose-600/80 leading-relaxed flex gap-2.5">
-                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 opacity-60" />
-                          <span className="font-medium">
-                            {step.error_message}
+                      {/* Record counts */}
+                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 tabular-nums">
+                          <ChevronRight className="h-3 w-3 rotate-180" />
+                          <strong className="text-foreground">{step.records_in.toLocaleString()}</strong> in
+                        </span>
+                        <span className="inline-flex items-center gap-1 tabular-nums">
+                          <ChevronRight className="h-3 w-3" />
+                          <strong className="text-foreground">{step.records_out.toLocaleString()}</strong> out
+                        </span>
+                        {step.records_failed > 0 && (
+                          <span className="inline-flex items-center gap-1 tabular-nums text-red-500">
+                            <AlertTriangle className="h-3 w-3" />
+                            <strong>{step.records_failed.toLocaleString()}</strong> failed
                           </span>
+                        )}
+                      </div>
+
+                      {/* Error */}
+                      {step.error_message && (
+                        <div className="mt-3 rounded-lg bg-red-500/5 border border-red-500/20 p-3 text-sm text-red-600 dark:text-red-400 leading-relaxed">
+                          {step.error_message}
                         </div>
                       )}
                     </div>
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
+      </Card>
 
-        {/* Sidebar Column */}
-        <div className="space-y-8 px-1">
-          <div className="space-y-4">
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Timeline Details
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-[12px]">
-                <span className="text-muted-foreground/70 font-medium">
-                  Started At
-                </span>
-                <span className="font-semibold text-foreground/90">
-                  {formatDate(run.started_at)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-[12px]">
-                <span className="text-muted-foreground/70 font-medium">
-                  Finished At
-                </span>
-                <span className="font-semibold text-foreground/90">
-                  {formatDate(run.finished_at)}
-                </span>
-              </div>
+      {/* Details row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card padding={false}>
+          <div className="px-5 py-3.5 border-b border-border">
+            <h3 className="text-sm font-semibold">Timeline</h3>
+          </div>
+          <div className="divide-y divide-border text-sm">
+            <div className="flex justify-between px-5 py-3">
+              <span className="text-muted-foreground flex items-center gap-2">
+                <Calendar className="h-3.5 w-3.5" /> Started
+              </span>
+              <span className="font-medium">{formatDate(run.started_at)}</span>
+            </div>
+            <div className="flex justify-between px-5 py-3">
+              <span className="text-muted-foreground flex items-center gap-2">
+                <Calendar className="h-3.5 w-3.5" /> Finished
+              </span>
+              <span className="font-medium">{formatDate(run.finished_at)}</span>
+            </div>
+            <div className="flex justify-between px-5 py-3">
+              <span className="text-muted-foreground flex items-center gap-2">
+                <Timer className="h-3.5 w-3.5" /> Duration
+              </span>
+              <span className="font-medium tabular-nums">{formatDuration(run.duration_ms)}</span>
             </div>
           </div>
+        </Card>
 
-          <div className="pt-8 border-t border-border/20 space-y-4">
-            <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
-              Technical Info
-            </h3>
-            <div className="p-3 rounded-lg bg-muted/5 border border-border/20 flex items-center justify-between group">
-              <div className="min-w-0">
-                <p className="text-[8px] font-bold text-muted-foreground/50 uppercase tracking-widest mb-1">
-                  Execution ID
-                </p>
-                <p className="text-[10px] font-mono text-muted-foreground/70 truncate">
-                  {run.id}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-foreground/60 opacity-0 group-hover:opacity-100 transition-all"
+        <Card padding={false}>
+          <div className="px-5 py-3.5 border-b border-border">
+            <h3 className="text-sm font-semibold">Details</h3>
+          </div>
+          <div className="divide-y divide-border text-sm">
+            <div className="flex justify-between items-center px-5 py-3">
+              <span className="text-muted-foreground">Pipeline</span>
+              <Link to={`/pipelines/${run.pipeline_id}`} className="font-medium text-primary hover:underline">
+                {pipelineName}
+              </Link>
+            </div>
+            <div className="flex justify-between px-5 py-3">
+              <span className="text-muted-foreground">Trigger</span>
+              <span className="font-medium capitalize">{run.trigger_type}</span>
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 group">
+              <span className="text-muted-foreground">Run ID</span>
+              <button
+                onClick={copyId}
+                className="inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Info className="h-3.5 w-3.5" />
-              </Button>
+                <span className="truncate max-w-[140px]">{run.id}</span>
+                {idCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+              </button>
             </div>
           </div>
-
-          {run.error_message && (
-            <div className="rounded-lg border border-rose-500/20 bg-rose-500/5 p-5 space-y-3">
-              <div className="flex items-center gap-2 text-rose-500/70">
-                <AlertTriangle className="h-4 w-4" />
-                <h3 className="text-[12px] font-bold uppercase tracking-wider">
-                  Critical Failure
-                </h3>
-              </div>
-              <p className="text-[12px] text-rose-600/80 leading-relaxed font-medium italic">
-                "{run.error_message}"
-              </p>
-            </div>
-          )}
-        </div>
+        </Card>
       </div>
     </div>
   );

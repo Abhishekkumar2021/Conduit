@@ -120,19 +120,19 @@ export function PipelineGraph({
       >
         <Background
           variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1.5}
+          gap={24}
+          size={1}
           color="var(--muted-foreground)"
-          className="opacity-15"
+          className="opacity-20"
         />
         <MiniMap
-          className="bg-card border-border rounded-lg shadow-sm"
+          className="!bg-card !border !border-border !rounded-xl !shadow-lg overflow-hidden"
           maskColor="var(--background)"
           nodeColor="var(--primary)"
         />
         <Controls
           showInteractive={false}
-          className="border-border bg-card fill-foreground"
+          className="!border !border-border !bg-card !rounded-xl !shadow-lg [&>button]:!border-border [&>button]:!bg-card [&>button]:!rounded-lg [&>button]:!text-foreground hover:[&>button]:!bg-accent"
         />
       </ReactFlow>
     </div>
